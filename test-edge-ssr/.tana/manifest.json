@@ -1,0 +1,16 @@
+{
+  "routes": [
+    {
+      "path": "/App",
+      "component": "/Users/samifouad/Projects/tana/vite-plugin-tana/test-edge-ssr/src/App.tsx"
+    },
+    {
+      "path": "/client",
+      "component": "/Users/samifouad/Projects/tana/vite-plugin-tana/test-edge-ssr/src/client.tsx"
+    },
+    {
+      "path": "/get",
+      "component": "/Users/samifouad/Projects/tana/vite-plugin-tana/test-edge-ssr/src/get.tsx"
+    }
+  ]
+}

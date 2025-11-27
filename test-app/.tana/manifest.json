@@ -1,0 +1,16 @@
+{
+  "routes": [
+    {
+      "path": "/",
+      "component": "/Users/samifouad/Projects/tana/vite-plugin-tana/test-app/app/views/index.tsx"
+    },
+    {
+      "path": "/posts/:id",
+      "component": "/Users/samifouad/Projects/tana/vite-plugin-tana/test-app/app/views/posts/[id].tsx"
+    },
+    {
+      "path": "/posts",
+      "component": "/Users/samifouad/Projects/tana/vite-plugin-tana/test-app/app/views/posts/index.tsx"
+    }
+  ]
+}

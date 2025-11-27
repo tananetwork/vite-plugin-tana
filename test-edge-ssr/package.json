@@ -1,0 +1,25 @@
+{
+  "name": "test-edge-ssr",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "bundle:server": "esbuild src/get.tsx --bundle --format=esm --outfile=../../contracts/react-ssr/get.js --external:react --external:react-dom/server --jsx=automatic",
+    "bundle:client": "esbuild src/client.tsx --bundle --format=esm --outfile=dist/client.js --jsx=automatic",
+    "bundle": "npm run bundle:server && npm run bundle:client",
+    "deploy": "npm run bundle && echo 'Contract deployed to ../../contracts/react-ssr/'"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "esbuild": "^0.19.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vite-plugin-tana": "file:.."
+  }
+}
