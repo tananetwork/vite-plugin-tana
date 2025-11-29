@@ -20,7 +20,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "templates"
   ],
   "scripts": {
     "dev": "tsup --watch",
@@ -28,7 +29,7 @@
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "start": "mprocs",
-    "demo": "cd example && npm run dev"
+    "demo": "cd templates/default && npm run dev"
   },
   "keywords": [
     "vite",

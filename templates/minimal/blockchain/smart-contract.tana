@@ -1,0 +1,26 @@
+// Smart Contract for {{name}}
+// This file is compiled at deployment time by tana-edge
+// Vite ignores .tana files - no bundling happens here
+
+// Called once when the contract is deployed to the blockchain
+export function init() {
+  // Initialize contract state
+}
+
+// Called for on-chain transactions (state changes)
+export function contract(tx) {
+  // Handle blockchain transactions
+}
+
+// HTTP GET handler - serves your React app
+export function get(req) {
+  // The compiled React app is injected here at deployment
+  return new Response('<!-- React app served here -->', {
+    headers: { 'Content-Type': 'text/html' }
+  })
+}
+
+// HTTP POST handler - API endpoints
+export function post(req) {
+  return Response.json({ message: 'API endpoint' })
+}

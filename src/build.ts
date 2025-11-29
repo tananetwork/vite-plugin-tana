@@ -1,24 +1,25 @@
 /**
  * Tana Framework Production Build Script
  *
- * Produces a deployment bundle that runs on tana-edge:
- *   - get.js      : Server bundle (exports GetStream) - React externalized
+ * Produces a unified contract bundle that runs on tana-edge:
+ *   - contract.js : Unified contract with 5 exports (init, contract, ssr, get, post)
  *   - client.js   : Client bundle for browser hydration
  *   - index.html  : HTML shell with proper references
  *   - styles.css  : Extracted CSS (when applicable)
  *
  * Usage:
- *   npx tana-build --entry src/get.tsx --out dist/my-app
+ *   npx tana-build --root ./my-app --out dist --id my-app
  *   npm run build  (with package.json configuration)
  */
 
 import { build, BuildOptions } from 'esbuild'
 import * as fs from 'fs'
 import * as path from 'path'
+import { scanProject, generateContract } from './generator.js'
 
 export interface TanaBuildConfig {
-  /** Entry point for server (exports GetStream or Get) */
-  serverEntry: string
+  /** Project root directory (containing app/, api/, blockchain/ folders) */
+  root: string
   /** Entry point for client (hydration code) */
   clientEntry: string
   /** Output directory */
@@ -34,13 +35,13 @@ export interface TanaBuildConfig {
 }
 
 export interface BuildResult {
-  serverBundle: string
+  contractBundle: string
   clientBundle: string
   htmlShell: string
   cssBundle: string | null
   contractDir: string
   stats: {
-    serverSize: number
+    contractSize: number
     clientSize: number
     cssSize: number
     buildTime: number
@@ -53,7 +54,7 @@ export interface BuildResult {
 export async function tanaBuild(config: TanaBuildConfig): Promise<BuildResult> {
   const startTime = Date.now()
   const {
-    serverEntry,
+    root,
     clientEntry,
     outDir,
     contractId,
@@ -67,47 +68,30 @@ export async function tanaBuild(config: TanaBuildConfig): Promise<BuildResult> {
   fs.mkdirSync(contractDir, { recursive: true })
 
   console.log(`\n🔨 Building Tana app: ${contractId}`)
-  console.log(`   Server entry: ${serverEntry}`)
+  console.log(`   Project root: ${root}`)
   console.log(`   Client entry: ${clientEntry}`)
   console.log(`   Output: ${contractDir}\n`)
 
-  // ========== 1. Build Server Bundle ==========
-  // React is externalized because tana-edge has React pre-bundled
+  // ========== 1. Scan Project Structure ==========
+  console.log('📂 Scanning project structure...')
+  const structure = await scanProject(root)
+
+  console.log(`   Found ${structure.pages.length} page(s)`)
+  console.log(`   Found ${structure.apiGet.length} GET handler(s)`)
+  console.log(`   Found ${structure.apiPost.length} POST handler(s)`)
+  if (structure.init) console.log(`   Found blockchain init`)
+  if (structure.contract) console.log(`   Found blockchain contract`)
+
+  // ========== 2. Generate Unified Contract ==========
   // IMPORTANT: Server bundles are NEVER minified because tana-edge's ESM import
   // rewriter uses regex patterns that expect imports on separate lines.
-  // Minified code like `import{renderToString as l}from"react-dom/server";`
-  // won't match the patterns and will cause runtime errors.
-  console.log('📦 Building server bundle (get.js)...')
+  // All code is inlined for maximum performance (zero I/O during execution)
+  console.log('\n📦 Generating unified contract.js...')
 
-  const serverBuildOptions: BuildOptions = {
-    entryPoints: [serverEntry],
-    bundle: true,
-    format: 'esm',
-    platform: 'neutral', // tana-edge V8 runtime
-    outfile: path.join(contractDir, 'get.js'),
-    external: [
-      'react',
-      'react-dom',
-      'react-dom/server',
-      'react/jsx-runtime',
-      'react/jsx-dev-runtime'
-    ],
-    jsx: 'automatic',
-    minify: false, // Server bundles must not be minified for tana-edge compatibility
-    sourcemap: true, // Always include sourcemaps for debugging
-    define: {
-      'process.env.NODE_ENV': '"production"',
-    },
-    banner: {
-      js: `// Tana Server Bundle - Contract: ${contractId}\n// Generated: ${new Date().toISOString()}\n`
-    }
-  }
+  const contractBundle = await generateContract(structure, contractDir)
+  const contractSize = fs.statSync(contractBundle).size
 
-  await build(serverBuildOptions)
-  const serverBundle = path.join(contractDir, 'get.js')
-  const serverSize = fs.statSync(serverBundle).size
-
-  console.log(`   ✓ Server: ${(serverSize / 1024).toFixed(1)} KB`)
+  console.log(`   ✓ Contract: ${(contractSize / 1024).toFixed(1)} KB`)
 
   // ========== 2. Build Client Bundle ==========
   // Full React bundle for browser - needs to match server rendering
@@ -143,9 +127,10 @@ export async function tanaBuild(config: TanaBuildConfig): Promise<BuildResult> {
 
   const possibleCssFiles = [
     config.cssEntry,
-    serverEntry.replace(/\.(tsx?|jsx?)$/, '.css'),
-    path.join(path.dirname(serverEntry), 'styles.css'),
-    path.join(path.dirname(serverEntry), 'index.css'),
+    path.join(root, 'styles.css'),
+    path.join(root, 'src/styles.css'),
+    path.join(root, 'index.css'),
+    path.join(root, 'src/index.css'),
   ].filter(Boolean) as string[]
 
   for (const cssFile of possibleCssFiles) {
@@ -178,7 +163,7 @@ export async function tanaBuild(config: TanaBuildConfig): Promise<BuildResult> {
 
   console.log(`\n✅ Build complete in ${buildTime}ms`)
   console.log(`\n📁 Output: ${contractDir}/`)
-  console.log(`   get.js      - Server bundle (streaming SSR)`)
+  console.log(`   contract.js - Unified contract (5 exports: init, contract, ssr, get, post)`)
   console.log(`   client.js   - Client bundle (hydration)`)
   console.log(`   index.html  - HTML shell`)
   if (cssBundle) {
@@ -187,16 +172,17 @@ export async function tanaBuild(config: TanaBuildConfig): Promise<BuildResult> {
 
   console.log(`\n🚀 Deploy to tana-edge:`)
   console.log(`   cp -r ${contractDir} /path/to/contracts/`)
-  console.log(`   # Access at: http://localhost:8506/stream/${contractId}\n`)
+  console.log(`   # SSR requests: http://localhost:8506/${contractId}`)
+  console.log(`   # API requests: http://localhost:8506/${contractId}/api/*\n`)
 
   return {
-    serverBundle,
+    contractBundle,
     clientBundle,
     htmlShell: htmlPath,
     cssBundle,
     contractDir,
     stats: {
-      serverSize,
+      contractSize,
       clientSize,
       cssSize,
       buildTime,
@@ -269,10 +255,10 @@ async function main() {
 Tana Build - Production bundler for tana-edge
 
 Usage:
-  tana-build --server src/get.tsx --client src/client.tsx --out dist --id my-app
+  tana-build --root ./my-app --client src/client.tsx --out dist --id my-app
 
 Options:
-  --server <path>   Server entry point (exports GetStream/Get)
+  --root <path>     Project root (containing app/, api/, blockchain/ folders)
   --client <path>   Client entry point (hydration code)
   --out <dir>       Output directory
   --id <name>       Contract ID (folder name in contracts/)
@@ -280,27 +266,32 @@ Options:
   --public <path>   Public path for assets (default: /)
   --help            Show this help
 
-Note: Server bundles (get.js) are never minified because tana-edge's ESM
-import rewriter requires imports on separate lines. Client bundles are
-minified by default for optimal browser delivery.
+Directory Structure:
+  app/              SSR pages (file-based routing)
+  api/              API endpoints (get.ts, post.ts per route)
+  blockchain/       On-chain logic (init.ts, contract.ts)
+
+Output:
+  contract.js       Unified contract with 5 exports (init, contract, ssr, get, post)
+  client.js         Client bundle for browser hydration
+  index.html        HTML shell
+  styles.css        Extracted styles (if present)
+
+Note: Server bundles are never minified for tana-edge ESM import compatibility.
+Client bundles are minified by default for optimal browser delivery.
 
 Example:
-  tana-build --server src/get.tsx --client src/client.tsx --out dist --id blog-app
+  tana-build --root ./my-app --client src/client.tsx --out dist --id blog-app
 `)
     process.exit(0)
   }
 
-  const serverEntry = getArg('server')
+  const root = getArg('root') || process.cwd()
   const clientEntry = getArg('client')
   const outDir = getArg('out') || 'dist'
   const contractId = getArg('id') || path.basename(process.cwd())
   const minify = !hasFlag('no-minify')
   const publicPath = getArg('public') || '/'
-
-  if (!serverEntry) {
-    console.error('Error: --server is required')
-    process.exit(1)
-  }
 
   if (!clientEntry) {
     console.error('Error: --client is required')
@@ -309,7 +300,7 @@ Example:
 
   try {
     await tanaBuild({
-      serverEntry,
+      root,
       clientEntry,
       outDir,
       contractId,

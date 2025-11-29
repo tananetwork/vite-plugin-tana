@@ -4,10 +4,10 @@ procs:
     shell: npm run dev
     cwd: .
 
-  # Run the example app (uses the built plugin)
+  # Run the default template app (uses the built plugin)
   demo:
     shell: npm run dev
-    cwd: ./example
+    cwd: ./templates/default
     # Wait for plugin to build first
     depends_on:
       - plugin
