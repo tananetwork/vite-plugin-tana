@@ -34,6 +34,8 @@ npm-debug.log*
 .env
 .env.local
 
+.rest
+
 # Tana development artifacts
 .tana/
 contracts/
@@ -44,3 +46,4 @@ templates/**/.tana/
 templates/**/dist/
 templates/**/.vite/
 templates/**/package-lock.json
+templates/**/blockchain/ssr.js

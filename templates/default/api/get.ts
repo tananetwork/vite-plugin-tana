@@ -3,7 +3,7 @@
  * File location: api/get.ts
  * Route: /api/get (accessible via HTTP GET)
  */
-export default function handler(request: any) {
+export default function GET(request: any) {
   return {
     status: 200,
     body: {

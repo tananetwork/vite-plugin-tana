@@ -1,13 +1,12 @@
 /**
- * Example API POST Handler
- * File location: api/post.ts
- * Route: /api/post (accessible via HTTP POST)
+ * API POST Handler
+ * Route: /api (accessible via HTTP POST)
  */
-export default function POST(request: any) {
+export default function handler(request: any) {
   return {
     status: 200,
     body: {
-      message: 'Data received via POST!',
+      message: 'Data received',
       receivedData: request.body,
       timestamp: new Date().toISOString(),
     },

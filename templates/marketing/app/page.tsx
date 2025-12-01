@@ -38,7 +38,7 @@ const stats = [
   { value: '24/7', label: 'Support' },
 ]
 
-export function App() {
+export default function MarketingPage() {
   return (
     <div className="min-h-screen bg-slate-900">
       {/* Navigation */}

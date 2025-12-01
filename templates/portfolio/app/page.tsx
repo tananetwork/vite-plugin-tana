@@ -45,7 +45,7 @@ function ProjectCard({ title, description, tags, image }: typeof projects[0]) {
   )
 }
 
-export function App() {
+export default function PortfolioPage() {
   return (
     <div className="min-h-screen bg-slate-900">
       {/* Hero Section */}

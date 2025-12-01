@@ -335,6 +335,8 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
       })
 
       // Middleware to proxy /api requests to tana-edge
+      // API requests are routed through the same SSR endpoint.
+      // The generated Get() function detects /api paths and delegates to get()/post()
       server.middlewares.use(async (req, res, next) => {
         // Only handle /api/* requests
         if (!req.url || !req.url.startsWith('/api')) {
@@ -348,15 +350,13 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
         }
 
         try {
-          // Extract the path after /api
-          const apiPath = req.url.slice(4) || '/' // Remove '/api' prefix
+          // Pass the full /api path to tana-edge SSR endpoint
+          // The Get() function will detect /api and route to get()/post() handlers
+          const response = await proxyToEdge(req.url, req.method || 'GET')
 
-          // Proxy to tana-edge's API handler
-          const response = await proxyApiToEdge(apiPath, req.method || 'GET', req)
-
+          // Parse and return JSON response from API handler
           res.setHeader('Content-Type', 'application/json')
-          res.statusCode = response.status
-          res.end(response.body)
+          res.end(response)
         } catch (error) {
           console.error('[tana] API Error:', error)
           res.setHeader('Content-Type', 'application/json')
@@ -405,9 +405,18 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
     handleHotUpdate({ file }) {
       // If app/, api/, or blockchain/ code changed, rebuild the unified contract
       // This enables instant server-side updates during development
+
+      // IMPORTANT: Exclude generated files to prevent infinite rebuild loops
+      // The generator outputs ssr.js to blockchain/ - we must not watch it
+      const isGeneratedFile = file.endsWith('/ssr.js') || file.endsWith('/contract.js')
+      if (isGeneratedFile) {
+        return undefined
+      }
+
       const isAppFile = file.includes('/app/') && (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js'))
       const isApiFile = file.includes('/api/') && (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js'))
-      const isBlockchainFile = file.includes('/blockchain/') && (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js'))
+      // Only watch .ts/.tsx source files in blockchain/, not generated .js files
+      const isBlockchainFile = file.includes('/blockchain/') && (file.endsWith('.tsx') || file.endsWith('.ts'))
 
       if (isAppFile || isApiFile || isBlockchainFile) {
         console.log(`[tana] Server code changed: ${path.relative(root, file)}`)

@@ -29,7 +29,7 @@ function PostCard({ title, excerpt, date, readTime }: typeof posts[0]) {
     <article className="bg-slate-800 rounded-lg p-6 hover:bg-slate-750 transition-colors cursor-pointer">
       <div className="flex items-center gap-2 text-sm text-slate-400 mb-3">
         <time>{date}</time>
-        <span>•</span>
+        <span>-</span>
         <span>{readTime}</span>
       </div>
       <h2 className="text-xl font-semibold text-white mb-2">{title}</h2>
@@ -38,7 +38,7 @@ function PostCard({ title, excerpt, date, readTime }: typeof posts[0]) {
   )
 }
 
-export function App() {
+export default function BlogPage() {
   return (
     <div className="min-h-screen bg-slate-900">
       <header className="border-b border-slate-800">

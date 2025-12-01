@@ -1,13 +1,14 @@
 /**
  * Unified Contract Code Generator
  *
- * Generates a single contract.js with 5 exports:
+ * Generates a single ssr.js file with 5 exports:
  * - init()     - On-chain initialization
  * - contract() - On-chain transaction handler
  * - ssr()      - Server-side rendering router
  * - get()      - API GET request router
  * - post()     - API POST request router
  *
+ * Named ssr.js to match tana-edge's expected filename convention.
  * All code is inlined for maximum performance (zero I/O during execution)
  */
 
@@ -137,42 +138,45 @@ function scanDir(
   }
 }
 
+/** Bundle result with code and component name */
+interface BundleResult {
+  code: string
+  componentName: string
+}
+
 /**
- * Generate unified contract.js with all code inlined
+ * Generate unified ssr.js with all code inlined
  */
 export async function generateContract(
   structure: ProjectStructure,
   outDir: string
 ): Promise<string> {
-  const contractPath = path.join(outDir, 'contract.js')
+  // Output as ssr.js - this is the filename tana-edge expects for SSR handlers
+  // The unified contract exports: ssr(), get(), post(), init(), contract()
+  const contractPath = path.join(outDir, 'ssr.js')
 
-  // Build inline bundles for each file
+  // Build inline bundles for each file (with index for unique naming)
   const pageBundles = await Promise.all(
-    structure.pages.map((page, i) => bundleAndTransform(page.filePath, 'page', i))
+    structure.pages.map((page, i) => bundleFile(page.filePath, 'page', i))
   )
 
   const getBundles = await Promise.all(
-    structure.apiGet.map((handler, i) => bundleAndTransform(handler.filePath, 'get', i))
+    structure.apiGet.map((handler, i) => bundleFile(handler.filePath, 'get', i))
   )
 
   const postBundles = await Promise.all(
-    structure.apiPost.map((handler, i) => bundleAndTransform(handler.filePath, 'post', i))
+    structure.apiPost.map((handler, i) => bundleFile(handler.filePath, 'post', i))
   )
 
   const initBundle = structure.init
-    ? await bundleFile(structure.init.filePath, 'init')
+    ? await bundleFile(structure.init.filePath, 'init', 0)
     : null
 
   const contractBundle = structure.contract
-    ? await bundleFile(structure.contract.filePath, 'contract')
+    ? await bundleFile(structure.contract.filePath, 'contract', 0)
     : null
 
-  // Extract top-level component definitions (outside the router functions)
-  const pageDefinitions = pageBundles.map(b => b.definition).join('\n\n')
-  const getDefinitions = getBundles.map(b => b.definition).join('\n\n')
-  const postDefinitions = postBundles.map(b => b.definition).join('\n\n')
-
-  // Generate contract.js content
+  // Generate ssr.js content (unified contract)
   const code = [
     '// Tana Unified Contract',
     `// Generated: ${new Date().toISOString()}`,
@@ -183,19 +187,19 @@ export async function generateContract(
     '',
     '// ========== Blockchain Functions ==========',
     '',
-    initBundle || '// No init() function defined',
+    initBundle?.code || '// No init() function defined',
     '',
-    contractBundle || '// No contract() function defined',
+    contractBundle?.code || '// No contract() function defined',
     '',
     '// ========== Page Components ==========',
     '',
-    pageDefinitions || '// No pages defined',
+    ...pageBundles.map(b => b.code),
     '',
     '// ========== API Handlers ==========',
     '',
-    getDefinitions || '// No GET handlers defined',
+    ...getBundles.map(b => b.code),
     '',
-    postDefinitions || '// No POST handlers defined',
+    ...postBundles.map(b => b.code),
     '',
     '// ========== SSR Router ==========',
     '',
@@ -215,10 +219,10 @@ export async function generateContract(
 }
 
 /**
- * Bundle a single file inline (returns code as string)
- * Used for init() and contract() which export named functions
+ * Bundle a single file and transform it for inlining
+ * Returns { code, componentName } where componentName is the unique alias for the export
  */
-async function bundleFile(filePath: string, type: string): Promise<string> {
+async function bundleFile(filePath: string, type: string, index: number): Promise<{ code: string; componentName: string }> {
   const result = await build({
     entryPoints: [filePath],
     bundle: true,
@@ -231,95 +235,64 @@ async function bundleFile(filePath: string, type: string): Promise<string> {
     treeShaking: true,
   })
 
-  return result.outputFiles[0].text
-}
+  let code = result.outputFiles[0].text
 
-interface TransformedBundle {
-  /** The component/handler definition to place at top level */
-  definition: string
-  /** The function name to call in the router */
-  functionName: string
-}
+  // Generate unique alias name based on type and index
+  const aliasName = type === 'page' ? `Page_${index}` :
+                    type === 'get' ? `GetHandler_${index}` :
+                    type === 'post' ? `PostHandler_${index}` :
+                    type === 'init' ? 'initHandler' :
+                    type === 'contract' ? 'contractHandler' : `Handler_${index}`
 
-/**
- * Bundle and transform a file for use in router
- * Extracts the default export and renames it to a unique identifier
- */
-async function bundleAndTransform(
-  filePath: string,
-  type: 'page' | 'get' | 'post',
-  index: number
-): Promise<TransformedBundle> {
-  const result = await build({
-    entryPoints: [filePath],
-    bundle: true,
-    format: 'esm',
-    platform: 'neutral',
-    write: false,
-    external: ['react', 'react-dom', 'react-dom/server', 'react/jsx-runtime'],
-    jsx: 'automatic',
-    minify: false,
-    treeShaking: true,
+  // Remove import statements (they'll be at module top level)
+  code = code.replace(/^import\s+.*?from\s+["'].*?["'];?\s*$/gm, '')
+
+  // Find the original function name from the export statement and rename it
+  // Pattern: export { FunctionName as default };
+  let originalName: string | null = null
+  code = code.replace(/export\s*\{\s*(\w+)\s+as\s+default\s*\};?\s*$/m, (match, name) => {
+    originalName = name
+    return '' // Remove the export statement
   })
 
-  let code = result.outputFiles[0].text
-  const prefix = type === 'page' ? 'Page' : type === 'get' ? 'GetHandler' : 'PostHandler'
-  const functionName = `${prefix}_${index}`
-
-  // Transform the code:
-  // 1. Remove import statements (they'll be at module top level already)
-  // 2. Remove the export statement and rename the default export
-
-  // Remove import statements (jsx runtime is already imported at module level)
-  code = code.replace(/^import\s+\{[^}]+\}\s+from\s+["'][^"']+["'];\s*$/gm, '')
-
-  // Find and extract the main function/component
-  // esbuild outputs: function ComponentName() {...} then export { ComponentName as default }
-  // Or: var ComponentName = ...; export { ComponentName as default }
-
-  // Replace the export statement with our renamed version
-  // Match: export { SomeName as default };
-  const exportMatch = code.match(/export\s*\{\s*(\w+)\s+as\s+default\s*\};?\s*$/)
-  if (exportMatch) {
-    const originalName = exportMatch[1]
-    // Remove the export line
-    code = code.replace(/export\s*\{\s*\w+\s+as\s+default\s*\};?\s*$/m, '')
-    // Rename the original function/var to our unique name
-    // Be careful to only rename the definition, not usages within the function
-    const funcPattern = new RegExp(`^(function\\s+)${originalName}(\\s*\\()`, 'm')
-    const varPattern = new RegExp(`^(var\\s+)${originalName}(\\s*=)`, 'm')
-
-    if (funcPattern.test(code)) {
-      code = code.replace(funcPattern, `$1${functionName}$2`)
-    } else if (varPattern.test(code)) {
-      code = code.replace(varPattern, `$1${functionName}$2`)
+  // Also handle: export default function Name()
+  if (!originalName) {
+    const match = code.match(/export\s+default\s+function\s+(\w+)/)
+    if (match) {
+      originalName = match[1]
+      code = code.replace(/export\s+default\s+function\s+(\w+)/, 'function $1')
     }
-  } else {
-    // Fallback: try to match inline export default
-    // export default function Name() or export default Name
+  }
+
+  // Also handle: export default Name (reference to existing function)
+  if (!originalName) {
+    code = code.replace(/export\s+default\s+(\w+);?\s*$/m, (match, name) => {
+      originalName = name
+      return ''
+    })
+  }
+
+  // Rename the original function to the unique alias name
+  // This avoids hoisting issues when multiple handlers have the same name (e.g., "handler")
+  if (originalName && originalName !== aliasName) {
+    // Rename function declaration: function handler( -> function GetHandler_0(
     code = code.replace(
-      /export\s+default\s+function\s+(\w+)/,
-      `function ${functionName}`
-    )
-    code = code.replace(
-      /export\s+default\s+(\w+)\s*;?\s*$/m,
-      '' // Remove, we already renamed
+      new RegExp(`function\\s+${originalName}\\s*\\(`),
+      `function ${aliasName}(`
     )
   }
 
   // Clean up empty lines
-  code = code.replace(/^\s*\n/gm, '').trim()
+  code = code.replace(/\n{3,}/g, '\n\n').trim()
 
-  return {
-    definition: `// ${type} ${index}: ${path.basename(filePath)}\n${code}`,
-    functionName,
-  }
+  return { code, componentName: aliasName }
 }
 
 /**
  * Generate SSR router function
+ * Components are defined at module top level, this just routes to them
  */
-function generateSSRRouter(pages: RouteFile[], bundles: TransformedBundle[]): string {
+function generateSSRRouter(pages: RouteFile[], bundles: BundleResult[]): string {
   if (pages.length === 0) {
     return `export function ssr(request) {
   return {
@@ -331,7 +304,7 @@ function generateSSRRouter(pages: RouteFile[], bundles: TransformedBundle[]): st
   }
 
   const cases = pages.map((page, i) => {
-    const componentName = bundles[i].functionName
+    const componentName = bundles[i].componentName
 
     if (page.params) {
       // Dynamic route - use pattern matching
@@ -340,32 +313,44 @@ function generateSSRRouter(pages: RouteFile[], bundles: TransformedBundle[]): st
       ).join('\\/')
 
       return `    // ${page.routePath}
-    if (path.match(/^${pattern}$/)) {
-      const params = extractParams(path, "${page.routePath}");
+    if (request.path.match(/^${pattern}$/)) {
+      const params = extractParams(request.path, "${page.routePath}");
       const html = renderToString(jsx(${componentName}, { request, params }));
-      return {
-        status: 200,
-        body: '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body><div id="root">' + html + '</div></body></html>',
-        headers: { 'Content-Type': 'text/html' }
-      };
+      return { status: 200, body: wrapHtml(html), headers: { 'Content-Type': 'text/html' } };
     }`
     } else {
       // Static route
-      return `    case '${page.routePath}': {
-      const html = renderToString(jsx(${componentName}, { request }));
+      return `    case '${page.routePath}':
       return {
         status: 200,
-        body: '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body><div id="root">' + html + '</div></body></html>',
+        body: wrapHtml(renderToString(jsx(${componentName}, { request }))),
         headers: { 'Content-Type': 'text/html' }
-      };
-    }`
+      };`
     }
   }).join('\n\n')
 
-  return `export function ssr(request) {
-  const { path, query, headers } = request;
+  return `// HTML wrapper for SSR output
+function wrapHtml(content) {
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><div id="root">' + content + '</div></body></html>';
+}
 
-  // Route matching
+export function Get(request) {
+  const { path, query, headers, method } = request;
+
+  // Handle API routes - delegate to get/post handlers
+  // Note: tana-edge passes path without leading '/' (e.g., 'api' not '/api')
+  if (path.startsWith('/api') || path.startsWith('api')) {
+    const apiPath = path.startsWith('/api') ? path.slice(4) : path.slice(3);  // Remove 'api' or '/api' prefix
+    const normalizedPath = apiPath === '' ? '/' : (apiPath.startsWith('/') ? apiPath : '/' + apiPath);  // Ensure leading slash
+    const apiRequest = { ...request, path: normalizedPath };
+
+    if (method === 'POST') {
+      return post(apiRequest);
+    }
+    return get(apiRequest);
+  }
+
+  // SSR route matching
   switch (path) {
 ${cases}
 
@@ -396,8 +381,9 @@ function extractParams(path, pattern) {
 
 /**
  * Generate API router function (get or post)
+ * Handlers are defined at module top level, this just routes to them
  */
-function generateAPIRouter(routes: RouteFile[], bundles: TransformedBundle[], method: 'get' | 'post'): string {
+function generateAPIRouter(routes: RouteFile[], bundles: BundleResult[], method: 'get' | 'post'): string {
   if (routes.length === 0) {
     return `export function ${method}(request) {
   return {
@@ -409,7 +395,7 @@ function generateAPIRouter(routes: RouteFile[], bundles: TransformedBundle[], me
   }
 
   const cases = routes.map((route, i) => {
-    const handlerName = bundles[i].functionName
+    const handlerName = bundles[i].componentName
 
     if (route.params) {
       const pattern = route.routePath.split('/').map(seg =>
@@ -417,8 +403,8 @@ function generateAPIRouter(routes: RouteFile[], bundles: TransformedBundle[], me
       ).join('\\/')
 
       return `    // ${route.routePath}
-    if (path.match(/^${pattern}$/)) {
-      const params = extractParams(path, "${route.routePath}");
+    if (request.path.match(/^${pattern}$/)) {
+      const params = extractParams(request.path, "${route.routePath}");
       return ${handlerName}({ ...request, params });
     }`
     } else {
