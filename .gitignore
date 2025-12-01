@@ -37,3 +37,10 @@ npm-debug.log*
 # Tana development artifacts
 .tana/
 contracts/
+
+# Template dev artifacts (should never be committed)
+templates/**/node_modules/
+templates/**/.tana/
+templates/**/dist/
+templates/**/.vite/
+templates/**/package-lock.json

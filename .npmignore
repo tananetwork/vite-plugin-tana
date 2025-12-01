@@ -1,0 +1,19 @@
+# Development files
+src/
+test-*/
+tsconfig.json
+tsup.config.ts
+vitest.config.ts
+mprocs.yaml
+.vscode/
+.idea/
+
+# Template dev artifacts
+templates/**/node_modules/
+templates/**/.tana/
+templates/**/dist/
+templates/**/.vite/
+
+# Logs and caches
+*.log
+.DS_Store
