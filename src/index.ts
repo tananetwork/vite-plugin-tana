@@ -5,6 +5,7 @@ import path from 'path'
 import fs from 'fs'
 import { watch } from 'fs'
 import { tanaBuild } from './build.js'
+import { scanProject, generateContract } from './generator.js'
 
 // ANSI colors for terminal output
 const colors = {
@@ -313,7 +314,13 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
 
       // Start tana-edge in dev mode
       if (dev) {
-        startTanaEdge()
+        // Generate initial contract before starting tana-edge
+        // This ensures the contract.js exists for the first request
+        // Use IIFE to properly await async operations in sync hook
+        ;(async () => {
+          await buildInitialContract()
+          startTanaEdge()
+        })()
       }
 
       // Print custom Tana banner when server is ready
@@ -457,6 +464,35 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
   }
 
   /**
+   * Build initial contract on dev server startup
+   * This ensures contract.js exists before tana-edge starts serving requests
+   */
+  async function buildInitialContract() {
+    try {
+      console.log('[tana] Building initial contract...')
+
+      // Scan project structure
+      const structure = await scanProject(root)
+
+      // Generate unified contract for dev
+      const devOutDir = path.join(resolvedContractsDir, contractId)
+
+      // Ensure output directory exists
+      if (!fs.existsSync(devOutDir)) {
+        fs.mkdirSync(devOutDir, { recursive: true })
+      }
+
+      // Generate the unified contract.js
+      await generateContract(structure, devOutDir)
+
+      console.log('[tana] ✅ Initial contract built')
+      console.log(`[tana]    ${structure.pages.length} page(s), ${structure.apiGet.length} GET handler(s), ${structure.apiPost.length} POST handler(s)`)
+    } catch (error) {
+      console.error('[tana] ❌ Initial contract build failed:', error)
+    }
+  }
+
+  /**
    * Start the actual tana-edge binary
    */
   function startTanaEdge() {
@@ -465,6 +501,9 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
     const env: Record<string, string> = {
       ...process.env as Record<string, string>,
       EDGE_PORT: String(edgePort),
+      // Tell tana-edge to look for contracts in cwd (project root)
+      // So /_dev/blockchain finds ./blockchain/contract.js
+      CONTRACTS_DIR: '.',
     }
 
     if (database) {
@@ -472,10 +511,11 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
     }
 
     // Spawn tana-edge binary
+    // Run from project root so /_dev/{contractId} finds {root}/{contractId}/contract.js
     tanaEdgeProcess = spawn(resolvedEdgeBinary, [], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env,
-      cwd: path.dirname(resolvedContractsDir), // Run from parent of contracts dir
+      cwd: resolvedContractsDir,
     })
 
     tanaEdgeProcess.stdout?.on('data', (data) => {
@@ -524,7 +564,8 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
     return new Promise((resolve, reject) => {
       // Use /_dev/:contractId endpoint which returns raw HTML
       // /_dev is a pseudo-address for local development (no blockchain address yet)
-      const ssrPath = `/_dev/${contractId}${url === '/' ? '' : url}`
+      // tana-edge requires trailing slash for root path
+      const ssrPath = `/_dev/${contractId}${url === '/' ? '/' : url}`
 
       const req = httpRequest(
         {
@@ -642,8 +683,6 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
    */
   async function rebuildUnifiedContract() {
     try {
-      const { scanProject, generateContract } = await import('./generator.js')
-
       console.log('[tana] 🔨 Rebuilding unified contract...')
 
       // Scan project structure

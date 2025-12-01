@@ -148,15 +148,15 @@ export async function generateContract(
 
   // Build inline bundles for each file
   const pageBundles = await Promise.all(
-    structure.pages.map(page => bundleFile(page.filePath, 'page'))
+    structure.pages.map((page, i) => bundleAndTransform(page.filePath, 'page', i))
   )
 
   const getBundles = await Promise.all(
-    structure.apiGet.map(handler => bundleFile(handler.filePath, 'get'))
+    structure.apiGet.map((handler, i) => bundleAndTransform(handler.filePath, 'get', i))
   )
 
   const postBundles = await Promise.all(
-    structure.apiPost.map(handler => bundleFile(handler.filePath, 'post'))
+    structure.apiPost.map((handler, i) => bundleAndTransform(handler.filePath, 'post', i))
   )
 
   const initBundle = structure.init
@@ -167,6 +167,11 @@ export async function generateContract(
     ? await bundleFile(structure.contract.filePath, 'contract')
     : null
 
+  // Extract top-level component definitions (outside the router functions)
+  const pageDefinitions = pageBundles.map(b => b.definition).join('\n\n')
+  const getDefinitions = getBundles.map(b => b.definition).join('\n\n')
+  const postDefinitions = postBundles.map(b => b.definition).join('\n\n')
+
   // Generate contract.js content
   const code = [
     '// Tana Unified Contract',
@@ -174,13 +179,23 @@ export async function generateContract(
     '',
     '// External dependencies (provided by tana-edge)',
     'import { renderToString } from "react-dom/server";',
-    'import { jsx, jsxs } from "react/jsx-runtime";',
+    'import { jsx, jsxs, Fragment } from "react/jsx-runtime";',
     '',
     '// ========== Blockchain Functions ==========',
     '',
     initBundle || '// No init() function defined',
     '',
     contractBundle || '// No contract() function defined',
+    '',
+    '// ========== Page Components ==========',
+    '',
+    pageDefinitions || '// No pages defined',
+    '',
+    '// ========== API Handlers ==========',
+    '',
+    getDefinitions || '// No GET handlers defined',
+    '',
+    postDefinitions || '// No POST handlers defined',
     '',
     '// ========== SSR Router ==========',
     '',
@@ -201,6 +216,7 @@ export async function generateContract(
 
 /**
  * Bundle a single file inline (returns code as string)
+ * Used for init() and contract() which export named functions
  */
 async function bundleFile(filePath: string, type: string): Promise<string> {
   const result = await build({
@@ -218,10 +234,92 @@ async function bundleFile(filePath: string, type: string): Promise<string> {
   return result.outputFiles[0].text
 }
 
+interface TransformedBundle {
+  /** The component/handler definition to place at top level */
+  definition: string
+  /** The function name to call in the router */
+  functionName: string
+}
+
+/**
+ * Bundle and transform a file for use in router
+ * Extracts the default export and renames it to a unique identifier
+ */
+async function bundleAndTransform(
+  filePath: string,
+  type: 'page' | 'get' | 'post',
+  index: number
+): Promise<TransformedBundle> {
+  const result = await build({
+    entryPoints: [filePath],
+    bundle: true,
+    format: 'esm',
+    platform: 'neutral',
+    write: false,
+    external: ['react', 'react-dom', 'react-dom/server', 'react/jsx-runtime'],
+    jsx: 'automatic',
+    minify: false,
+    treeShaking: true,
+  })
+
+  let code = result.outputFiles[0].text
+  const prefix = type === 'page' ? 'Page' : type === 'get' ? 'GetHandler' : 'PostHandler'
+  const functionName = `${prefix}_${index}`
+
+  // Transform the code:
+  // 1. Remove import statements (they'll be at module top level already)
+  // 2. Remove the export statement and rename the default export
+
+  // Remove import statements (jsx runtime is already imported at module level)
+  code = code.replace(/^import\s+\{[^}]+\}\s+from\s+["'][^"']+["'];\s*$/gm, '')
+
+  // Find and extract the main function/component
+  // esbuild outputs: function ComponentName() {...} then export { ComponentName as default }
+  // Or: var ComponentName = ...; export { ComponentName as default }
+
+  // Replace the export statement with our renamed version
+  // Match: export { SomeName as default };
+  const exportMatch = code.match(/export\s*\{\s*(\w+)\s+as\s+default\s*\};?\s*$/)
+  if (exportMatch) {
+    const originalName = exportMatch[1]
+    // Remove the export line
+    code = code.replace(/export\s*\{\s*\w+\s+as\s+default\s*\};?\s*$/m, '')
+    // Rename the original function/var to our unique name
+    // Be careful to only rename the definition, not usages within the function
+    const funcPattern = new RegExp(`^(function\\s+)${originalName}(\\s*\\()`, 'm')
+    const varPattern = new RegExp(`^(var\\s+)${originalName}(\\s*=)`, 'm')
+
+    if (funcPattern.test(code)) {
+      code = code.replace(funcPattern, `$1${functionName}$2`)
+    } else if (varPattern.test(code)) {
+      code = code.replace(varPattern, `$1${functionName}$2`)
+    }
+  } else {
+    // Fallback: try to match inline export default
+    // export default function Name() or export default Name
+    code = code.replace(
+      /export\s+default\s+function\s+(\w+)/,
+      `function ${functionName}`
+    )
+    code = code.replace(
+      /export\s+default\s+(\w+)\s*;?\s*$/m,
+      '' // Remove, we already renamed
+    )
+  }
+
+  // Clean up empty lines
+  code = code.replace(/^\s*\n/gm, '').trim()
+
+  return {
+    definition: `// ${type} ${index}: ${path.basename(filePath)}\n${code}`,
+    functionName,
+  }
+}
+
 /**
  * Generate SSR router function
  */
-function generateSSRRouter(pages: RouteFile[], bundles: string[]): string {
+function generateSSRRouter(pages: RouteFile[], bundles: TransformedBundle[]): string {
   if (pages.length === 0) {
     return `export function ssr(request) {
   return {
@@ -233,6 +331,8 @@ function generateSSRRouter(pages: RouteFile[], bundles: string[]): string {
   }
 
   const cases = pages.map((page, i) => {
+    const componentName = bundles[i].functionName
+
     if (page.params) {
       // Dynamic route - use pattern matching
       const pattern = page.routePath.split('/').map(seg =>
@@ -240,16 +340,25 @@ function generateSSRRouter(pages: RouteFile[], bundles: string[]): string {
       ).join('\\/')
 
       return `    // ${page.routePath}
-    if (request.path.match(/^${pattern}$/)) {
-      const params = extractParams(request.path, "${page.routePath}");
-      ${bundles[i]}
-      return render_${i}(request, params);
+    if (path.match(/^${pattern}$/)) {
+      const params = extractParams(path, "${page.routePath}");
+      const html = renderToString(jsx(${componentName}, { request, params }));
+      return {
+        status: 200,
+        body: '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body><div id="root">' + html + '</div></body></html>',
+        headers: { 'Content-Type': 'text/html' }
+      };
     }`
     } else {
       // Static route
-      return `    case '${page.routePath}':
-      ${bundles[i]}
-      return render_${i}(request);`
+      return `    case '${page.routePath}': {
+      const html = renderToString(jsx(${componentName}, { request }));
+      return {
+        status: 200,
+        body: '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body><div id="root">' + html + '</div></body></html>',
+        headers: { 'Content-Type': 'text/html' }
+      };
+    }`
     }
   }).join('\n\n')
 
@@ -288,7 +397,7 @@ function extractParams(path, pattern) {
 /**
  * Generate API router function (get or post)
  */
-function generateAPIRouter(routes: RouteFile[], bundles: string[], method: 'get' | 'post'): string {
+function generateAPIRouter(routes: RouteFile[], bundles: TransformedBundle[], method: 'get' | 'post'): string {
   if (routes.length === 0) {
     return `export function ${method}(request) {
   return {
@@ -300,21 +409,21 @@ function generateAPIRouter(routes: RouteFile[], bundles: string[], method: 'get'
   }
 
   const cases = routes.map((route, i) => {
+    const handlerName = bundles[i].functionName
+
     if (route.params) {
       const pattern = route.routePath.split('/').map(seg =>
         seg.startsWith(':') ? '([^/]+)' : seg
       ).join('\\/')
 
       return `    // ${route.routePath}
-    if (request.path.match(/^${pattern}$/)) {
-      const params = extractParams(request.path, "${route.routePath}");
-      ${bundles[i]}
-      return handler_${i}(request, params);
+    if (path.match(/^${pattern}$/)) {
+      const params = extractParams(path, "${route.routePath}");
+      return ${handlerName}({ ...request, params });
     }`
     } else {
       return `    case '${route.routePath}':
-      ${bundles[i]}
-      return handler_${i}(request);`
+      return ${handlerName}(request);`
     }
   }).join('\n\n')
 
