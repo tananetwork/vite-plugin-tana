@@ -517,13 +517,14 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
   }
 
   /**
-   * Proxy request to tana-edge's /ssr/ endpoint
-   * The /ssr/ endpoint returns raw HTML (not JSON-wrapped)
+   * Proxy request to tana-edge's /_dev/ endpoint for local development
+   * The /_dev/{contractId}/* endpoint returns raw HTML (not JSON-wrapped)
    */
   async function proxyToEdge(url: string, method: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      // Use /ssr/:contractId endpoint which returns raw HTML
-      const ssrPath = `/ssr/${contractId}${url === '/' ? '' : url}`
+      // Use /_dev/:contractId endpoint which returns raw HTML
+      // /_dev is a pseudo-address for local development (no blockchain address yet)
+      const ssrPath = `/_dev/${contractId}${url === '/' ? '' : url}`
 
       const req = httpRequest(
         {
@@ -563,8 +564,9 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
       // Determine which handler to call based on HTTP method
       const handlerFile = method === 'POST' ? 'post.js' : 'get.js'
 
-      // tana-edge expects: /{contractId}/api/{handler}?path={apiPath}
-      const edgePath = `/${contractId}/api/${handlerFile}${apiPath ? `?path=${encodeURIComponent(apiPath)}` : ''}`
+      // tana-edge expects: /_dev/{contractId}/api/{handler}?path={apiPath}
+      // /_dev is the pseudo-address for local development
+      const edgePath = `/_dev/${contractId}/api/${handlerFile}${apiPath ? `?path=${encodeURIComponent(apiPath)}` : ''}`
 
       const headers: Record<string, string> = {
         'Content-Type': req.headers['content-type'] || 'application/json',

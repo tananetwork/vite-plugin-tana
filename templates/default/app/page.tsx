@@ -12,10 +12,10 @@ export default function HomePage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          Welcome to Tana Framework
+          Welcome to tana framework
         </h1>
         <p className="text-lg text-gray-700 mb-8">
-          This is a server-side rendered React application built with the unified contract architecture.
+          This is a server-side rendered React 19 web app
         </p>
 
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
