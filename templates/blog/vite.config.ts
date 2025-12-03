@@ -4,6 +4,8 @@ import tanaPlugin from '@tananetwork/vite-plugin-tana'
 import path from 'path'
 
 export default defineConfig({
+  // Standard Tana project structure: app/, api/, blockchain/ at project root
+  // Public assets go in public/ which Vite serves automatically
   plugins: [
     react(),
     tanaPlugin({

@@ -150,15 +150,15 @@ interface BundleResult {
 }
 
 /**
- * Generate unified ssr.js with all code inlined
+ * Generate unified contract.js with all code inlined
  */
 export async function generateContract(
   structure: ProjectStructure,
   outDir: string
 ): Promise<string> {
-  // Output as ssr.js - this is the filename tana-edge expects for SSR handlers
+  // Output as contract.js - unified contract file for both CLI deploy and tana-edge runtime
   // The unified contract exports: ssr(), get(), post(), init(), contract()
-  const contractPath = path.join(outDir, 'ssr.js')
+  const contractPath = path.join(outDir, 'contract.js')
 
   // Build inline bundles for each file (with index for unique naming)
   const pageBundles = await Promise.all(
@@ -348,8 +348,9 @@ function generateSSRRouter(pages: RouteFile[], bundles: BundleResult[]): string 
   }).join('\n\n')
 
   return `// HTML wrapper for SSR output
+// Includes client.js for hydration - in production, client.js is served from the same contract directory
 function wrapHtml(content) {
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><div id="root">' + content + '</div></body></html>';
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="styles.css"></head><body><div id="root">' + content + '</div><script type="module" src="client.js"></script></body></html>';
 }
 
 export function Get(request) {

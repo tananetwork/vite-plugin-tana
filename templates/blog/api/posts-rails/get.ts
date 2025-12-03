@@ -9,7 +9,7 @@
  */
 
 import { model } from 'tana/db'
-import { posts } from '../../db/schema'
+import { posts } from '../../blockchain/schema'
 import { json, status } from 'tana/http'
 import type { Request } from 'tana/net'
 

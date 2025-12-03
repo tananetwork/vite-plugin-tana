@@ -13,7 +13,7 @@ export const posts = table('posts', {
   excerpt: text('excerpt'),
   content: text('content'),
   readTime: text('read_time').default('5 min read'),
-  published: timestamp('published_at', { withTimezone: true }),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 })

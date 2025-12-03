@@ -5,7 +5,11 @@ import path from 'path'
 import fs from 'fs'
 import { watch } from 'fs'
 import { tanaBuild } from './build.js'
-import { scanProject, generateContract } from './generator.js'
+import { scanProject, generateContract, ProjectStructure } from './generator.js'
+
+// Virtual module ID for client-side hydration
+const VIRTUAL_HYDRATE_ID = 'virtual:tana-hydrate'
+const RESOLVED_VIRTUAL_HYDRATE_ID = '\0' + VIRTUAL_HYDRATE_ID
 
 // ANSI colors for terminal output
 const colors = {
@@ -233,6 +237,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
   let root: string
   let outDir: string
   let resolvedContractsDir: string
+  let projectStructure: ProjectStructure | null = null
 
   // Track if tana-edge is ready
   let edgeReady = false
@@ -261,6 +266,25 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
         optimizeDeps: {
           include: ['react', 'react-dom', 'react-dom/client'],
         },
+        build: {
+          // Keep emptyOutDir false in case users have custom files in dist/
+          // Our plugin writes to build/ directory (separate from Vite's dist/)
+          emptyOutDir: false,
+        },
+      }
+    },
+
+    // Virtual module resolution for client-side hydration
+    resolveId(id) {
+      if (id === VIRTUAL_HYDRATE_ID) {
+        return RESOLVED_VIRTUAL_HYDRATE_ID
+      }
+    },
+
+    // Generate the virtual hydration module content
+    load(id) {
+      if (id === RESOLVED_VIRTUAL_HYDRATE_ID) {
+        return generateHydrationModule(projectStructure, root)
       }
     },
 
@@ -441,35 +465,61 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
       return undefined
     },
 
-    async buildEnd() {
+    // closeBundle is the FINAL Rollup/Vite hook - guaranteed to run after ALL
+    // Rollup file operations are complete. Vite will await this if it's async.
+    // We output to dist/blockchain/, then clean up Vite's redundant output.
+    async closeBundle() {
       // Clean up tana-edge process
       if (tanaEdgeProcess) {
         tanaEdgeProcess.kill()
         tanaEdgeProcess = null
       }
 
-      // Trigger production build (Feature #1: Unified Build Workflow)
-      // Automatically build unified contract + client bundles after Vite build completes
-      try {
-        console.log('\n[tana] Production build starting...')
+      // Output to 'dist/' directory - same as Vite's output
+      // emptyOutDir: false in config() prevents Vite from clearing our files
+      const finalOutDir = contractsDir
+        ? path.resolve(root, contractsDir)
+        : path.join(root, 'dist')
 
-        // Auto-detect client entry point
-        const clientEntry = findClientEntry(root)
+      // Auto-detect client entry point
+      let clientEntry = findClientEntry(root)
+      let generatedClientEntry = false
 
-        if (!clientEntry) {
-          console.error('[tana] ❌ No client entry found. Expected: src/client.tsx')
-          return
+      // If no client entry exists, generate one automatically
+      // This provides the same DX as Astro/SvelteKit - no boilerplate needed
+      if (!clientEntry) {
+        console.log('[tana] No client entry found, generating auto-hydration entry...')
+
+        // Scan project for pages (reuse existing structure if available)
+        const structure = projectStructure || await scanProject(root)
+
+        if (structure.pages.length === 0) {
+          console.log('[tana] No pages found, skipping client bundle generation')
+        } else {
+          // Generate a temporary client entry file
+          const tempClientPath = path.join(root, '.tana', 'client.tsx')
+          fs.mkdirSync(path.dirname(tempClientPath), { recursive: true })
+
+          const clientCode = generateClientEntryCode(structure, root)
+          fs.writeFileSync(tempClientPath, clientCode)
+
+          clientEntry = tempClientPath
+          generatedClientEntry = true
+          console.log(`[tana] Generated client entry: .tana/client.tsx`)
         }
+      }
 
-        console.log(`[tana] Project root: ${root}`)
-        console.log(`[tana] Client entry: ${path.relative(root, clientEntry)}`)
+      if (!clientEntry) {
+        console.log('[tana] ⚠️ No pages to hydrate, skipping production build')
+        return
+      }
 
-        // Get output directory from contractsDir option
-        const finalOutDir = contractsDir
-          ? path.resolve(root, contractsDir)
-          : path.join(root, 'dist')
+      console.log('\n[tana] Production build starting...')
+      console.log(`[tana] Project root: ${root}`)
+      console.log(`[tana] Client entry: ${path.relative(root, clientEntry)}${generatedClientEntry ? ' (auto-generated)' : ''}`)
+      console.log(`[tana] Output: ${finalOutDir}/${contractId}`)
 
-        // Call tanaBuild with unified contract configuration
+      try {
         await tanaBuild({
           root,
           clientEntry,
@@ -478,6 +528,19 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
           minify: true,
           publicPath: '/',
         })
+
+        // Clean up Vite's redundant output - we only need dist/blockchain/
+        // Vite outputs assets/ and index.html which duplicate what's in blockchain/
+        const distDir = path.join(root, 'dist')
+        const assetsDir = path.join(distDir, 'assets')
+        const viteIndexHtml = path.join(distDir, 'index.html')
+
+        if (fs.existsSync(assetsDir)) {
+          fs.rmSync(assetsDir, { recursive: true })
+        }
+        if (fs.existsSync(viteIndexHtml)) {
+          fs.unlinkSync(viteIndexHtml)
+        }
 
         console.log('[tana] ✅ Production build complete!\n')
       } catch (error) {
@@ -494,8 +557,9 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
     try {
       console.log('[tana] Building initial contract...')
 
-      // Scan project structure
-      const structure = await scanProject(root)
+      // Scan project structure and store it for the hydration module
+      projectStructure = await scanProject(root)
+      const structure = projectStructure
 
       // Generate unified contract for dev
       const devOutDir = path.join(resolvedContractsDir, contractId)
@@ -689,7 +753,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
   }
 
   /**
-   * Inject Vite's HMR client scripts and stylesheet into the HTML
+   * Inject Vite's HMR client scripts, hydration, and stylesheet into the HTML
    */
   function injectViteClient(html: string): string {
     // Build stylesheet link if a stylesheet was detected/configured
@@ -708,6 +772,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
       window.$RefreshSig$ = () => (type) => type
       window.__vite_plugin_react_preamble_installed__ = true
     </script>
+    <script type="module" src="/@id/${VIRTUAL_HYDRATE_ID}"></script>
 `
     return html.replace('</head>', `${viteAssets}</head>`)
   }
@@ -720,8 +785,9 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
     try {
       console.log('[tana] 🔨 Rebuilding unified contract...')
 
-      // Scan project structure
-      const structure = await scanProject(root)
+      // Scan project structure and update for the hydration module
+      projectStructure = await scanProject(root)
+      const structure = projectStructure
 
       // Generate unified contract for dev
       const devOutDir = path.join(resolvedContractsDir, contractId)
@@ -885,4 +951,186 @@ function printTanaBanner(vitePort: number, edgePort: number) {
   console.log()
   console.log(`  ${gray}press${reset} ${bold}h${reset} ${gray}to show help${reset}`)
   console.log()
+}
+
+/**
+ * Generate a virtual module for client-side hydration
+ * This module imports all page components and hydrates the correct one based on the URL
+ */
+function generateHydrationModule(structure: ProjectStructure | null, root: string): string {
+  if (!structure || structure.pages.length === 0) {
+    // No pages found - return minimal module that doesn't hydrate
+    return `// No pages found - nothing to hydrate
+console.log('[tana] No pages to hydrate');
+`
+  }
+
+  // Generate imports for all page components
+  const imports = structure.pages.map((page, i) => {
+    const relativePath = path.relative(root, page.filePath).replace(/\\/g, '/')
+    return `import Page_${i} from '/${relativePath}';`
+  }).join('\n')
+
+  // Generate route matching logic
+  const routes = structure.pages.map((page, i) => {
+    if (page.params && page.params.length > 0) {
+      // Dynamic route - generate regex pattern
+      const pattern = page.routePath.split('/').map(seg =>
+        seg.startsWith(':') ? '([^/]+)' : seg
+      ).join('\\/')
+      return `  { path: /^${pattern}$/, component: Page_${i}, params: ${JSON.stringify(page.params)} }`
+    } else {
+      // Static route
+      return `  { path: '${page.routePath}', component: Page_${i} }`
+    }
+  }).join(',\n')
+
+  return `// Tana Hydration Module (auto-generated)
+import { hydrateRoot, createRoot } from 'react-dom/client';
+import { createElement } from 'react';
+
+${imports}
+
+const routes = [
+${routes}
+];
+
+// Match current URL to a route and hydrate
+function hydrate() {
+  const path = window.location.pathname;
+  const root = document.getElementById('root');
+
+  if (!root) {
+    console.error('[tana] No #root element found for hydration');
+    return;
+  }
+
+  // Find matching route
+  for (const route of routes) {
+    if (typeof route.path === 'string') {
+      // Static route - exact match
+      if (route.path === path) {
+        hydrateRoot(root, createElement(route.component, {}));
+        return;
+      }
+    } else {
+      // Dynamic route - regex match
+      const match = path.match(route.path);
+      if (match) {
+        // Extract params from match groups
+        const params = {};
+        route.params?.forEach((name, i) => {
+          params[name] = match[i + 1];
+        });
+        hydrateRoot(root, createElement(route.component, { params }));
+        return;
+      }
+    }
+  }
+
+  console.warn('[tana] No matching route for hydration:', path);
+}
+
+// Hydrate when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', hydrate);
+} else {
+  hydrate();
+}
+`
+}
+
+/**
+ * Generate client entry code for production builds
+ * This creates a standalone TypeScript file that esbuild can compile
+ * (different from generateHydrationModule which returns a string for Vite's virtual module)
+ */
+function generateClientEntryCode(structure: ProjectStructure, root: string): string {
+  if (!structure || structure.pages.length === 0) {
+    return `// No pages found - nothing to hydrate
+console.log('[tana] No pages to hydrate');
+`
+  }
+
+  // Generate imports for all page components
+  const imports = structure.pages.map((page, i) => {
+    const relativePath = path.relative(root, page.filePath).replace(/\\/g, '/')
+    // Use relative path from .tana/ directory (where this file will be written)
+    return `import Page_${i} from '../${relativePath}';`
+  }).join('\n')
+
+  // Generate route definitions
+  const routes = structure.pages.map((page, i) => {
+    if (page.params && page.params.length > 0) {
+      // Dynamic route - generate regex pattern
+      const pattern = page.routePath.split('/').map(seg =>
+        seg.startsWith(':') ? '([^/]+)' : seg
+      ).join('\\\\/')
+      return `  { path: /^${pattern}$/, component: Page_${i}, params: ${JSON.stringify(page.params)} }`
+    } else {
+      // Static route
+      return `  { path: '${page.routePath}', component: Page_${i} }`
+    }
+  }).join(',\n')
+
+  return `// Tana Client Entry (auto-generated for production)
+// This file is generated when no src/client.tsx exists
+import { hydrateRoot } from 'react-dom/client';
+import { createElement } from 'react';
+
+${imports}
+
+interface Route {
+  path: string | RegExp;
+  component: React.ComponentType<any>;
+  params?: string[];
+}
+
+const routes: Route[] = [
+${routes}
+];
+
+// Match current URL to a route and hydrate
+function hydrate() {
+  const pathname = window.location.pathname;
+  const root = document.getElementById('root');
+
+  if (!root) {
+    console.error('[tana] No #root element found for hydration');
+    return;
+  }
+
+  // Find matching route
+  for (const route of routes) {
+    if (typeof route.path === 'string') {
+      // Static route - exact match
+      if (route.path === pathname) {
+        hydrateRoot(root, createElement(route.component, {}));
+        return;
+      }
+    } else {
+      // Dynamic route - regex match
+      const match = pathname.match(route.path);
+      if (match) {
+        // Extract params from match groups
+        const params: Record<string, string> = {};
+        route.params?.forEach((name, i) => {
+          params[name] = match[i + 1];
+        });
+        hydrateRoot(root, createElement(route.component, { params }));
+        return;
+      }
+    }
+  }
+
+  console.warn('[tana] No matching route for hydration:', pathname);
+}
+
+// Hydrate when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', hydrate);
+} else {
+  hydrate();
+}
+`
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Post as SchemaPost } from '../db/schema'
+import type { Post as SchemaPost } from '../blockchain/schema'
 
 // JSON API serializes Date fields as ISO strings
 type Post = {

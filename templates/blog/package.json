@@ -5,6 +5,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test:e2e": "playwright test",
     "db:migrate": "tana db migrate",
     "db:generate": "tana db generate",
     "db:status": "tana db status",
@@ -17,7 +18,8 @@
     "postgres": "^3.4.0"
   },
   "devDependencies": {
-    "@tananetwork/vite-plugin-tana": "^0.3.0",
+    "@tananetwork/vite-plugin-tana": "file:../..",
+    "@playwright/test": "^1.40.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",

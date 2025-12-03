@@ -8,7 +8,7 @@
  */
 
 import { model } from 'tana/db'
-import { posts, type NewPost } from '../../db/schema'
+import { posts, type NewPost } from '../../blockchain/schema'
 import { status } from 'tana/http'
 import type { Request } from 'tana/net'
 
