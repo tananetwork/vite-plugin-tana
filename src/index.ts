@@ -997,7 +997,19 @@ ${routes}
 
 // Match current URL to a route and hydrate
 function hydrate() {
-  const path = window.location.pathname;
+  let path = window.location.pathname;
+
+  // Strip contract base path if present (e.g., /contracts/{uuid}/)
+  // This allows the app to work when served at a sub-path
+  const contractMatch = path.match(/^\\/contracts\\/[a-f0-9-]{36}(\\/.*)?$/);
+  if (contractMatch) {
+    path = contractMatch[1] || '/';
+  }
+
+  // Normalize: ensure path starts with / and handle trailing slashes
+  if (!path.startsWith('/')) path = '/' + path;
+  if (path !== '/' && path.endsWith('/')) path = path.slice(0, -1);
+
   const root = document.getElementById('root');
 
   if (!root) {
@@ -1092,7 +1104,19 @@ ${routes}
 
 // Match current URL to a route and hydrate
 function hydrate() {
-  const pathname = window.location.pathname;
+  let pathname = window.location.pathname;
+
+  // Strip contract base path if present (e.g., /contracts/{uuid}/)
+  // This allows the app to work when served at a sub-path
+  const contractMatch = pathname.match(/^\\/contracts\\/[a-f0-9-]{36}(\\/.*)?$/);
+  if (contractMatch) {
+    pathname = contractMatch[1] || '/';
+  }
+
+  // Normalize: ensure path starts with / and handle trailing slashes
+  if (!pathname.startsWith('/')) pathname = '/' + pathname;
+  if (pathname !== '/' && pathname.endsWith('/')) pathname = pathname.slice(0, -1);
+
   const root = document.getElementById('root');
 
   if (!root) {
