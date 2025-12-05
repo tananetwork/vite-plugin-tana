@@ -17,9 +17,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
-    "paths": {
-      "tana/*": ["./types/tana/*"]
-    }
   },
-  "include": ["src", "app", "api", "blockchain", "types"]
+  "include": ["src", "app", "api", "blockchain"]
 }

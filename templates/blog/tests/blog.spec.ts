@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Blog Template E2E Tests', () => {
-  test.describe('SSR Rendering', () => {
-    test('should render the page with SSR content', async ({ page }) => {
+  test.describe('RSC Rendering', () => {
+    test('should render the page with RSC content', async ({ page }) => {
       // Navigate to the home page
       await page.goto('/');
 
-      // Check that the main heading is rendered (SSR)
+      // Check that the main heading is rendered (RSC)
       const heading = page.locator('h1');
       await expect(heading).toContainText('My Blog');
 

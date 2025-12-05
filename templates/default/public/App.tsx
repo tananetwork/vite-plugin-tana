@@ -1,8 +1,9 @@
-// Shared component - used by both SSR and client hydration
+'use client'
+// Client Component - uses React state and effects
 import React from 'react'
 
 export function App({ url }: { url: string }) {
-  // State and interactivity - will only work after hydration
+  // State and interactivity - available immediately in client components
   const [count, setCount] = React.useState(0)
   const [hydrated, setHydrated] = React.useState(false)
 
@@ -17,18 +18,18 @@ export function App({ url }: { url: string }) {
           Hello from tana-edge!
         </h1>
         <p className="text-slate-300 mb-2">
-          This page was server-rendered using React inside tana-edge's V8 runtime.
+          This page uses React Server Components with Flight protocol streaming.
         </p>
         <p className="text-slate-400 mb-6">
           Route: <code className="bg-slate-700 px-2 py-1 rounded text-purple-300">{url}</code>
         </p>
 
         <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-emerald-400">Hydration Test</h2>
+          <h2 className="text-xl font-semibold mb-4 text-emerald-400">Client Component Test</h2>
           <p className="mb-4">
             Status:{' '}
             <span className={`font-bold ${hydrated ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {hydrated ? '✅ Hydrated - Interactive!' : '⏳ Server-rendered - Waiting for hydration...'}
+              {hydrated ? '✅ Mounted - Interactive!' : '⏳ Loading...'}
             </span>
           </p>
           <button
@@ -38,23 +39,23 @@ export function App({ url }: { url: string }) {
             Count: {count}
           </button>
           <p className="text-xs text-slate-500 mt-4">
-            Click the button to verify React hydration is working
+            This is a client component - click to test interactivity
           </p>
         </div>
 
         <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
-          <h2 className="text-xl font-semibold mb-4 text-cyan-400">What's happening:</h2>
+          <h2 className="text-xl font-semibold mb-4 text-cyan-400">How RSC works:</h2>
           <ol className="list-decimal list-inside space-y-2 text-slate-300">
-            <li>Polyfills provided TextEncoder, TextDecoder, etc.</li>
-            <li>React + react-dom/server bundled together</li>
-            <li>tana-edge executed in V8 isolate</li>
-            <li>renderToString() produced this HTML</li>
-            <li>Client bundle hydrates with hydrateRoot()</li>
+            <li>Server Components render on the server only</li>
+            <li>Flight protocol streams the component tree</li>
+            <li>Client Components (like this) run in browser</li>
+            <li>Progressive loading with Suspense boundaries</li>
+            <li>Smaller client bundle - server code stays on server</li>
           </ol>
         </div>
 
         <p className="text-center text-slate-500 text-sm mt-8">
-          Built with Tailwind CSS + Tana Framework
+          Built with Tailwind CSS + Tana Framework (RSC)
         </p>
       </div>
     </div>

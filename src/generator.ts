@@ -1,14 +1,15 @@
 /**
- * Unified Contract Code Generator
+ * Unified Contract Code Generator (RSC)
  *
- * Generates a single ssr.js file with 5 exports:
+ * Generates a single contract.js file with 5 exports:
  * - init()     - On-chain initialization
  * - contract() - On-chain transaction handler
- * - ssr()      - Server-side rendering router
+ * - Page()     - React Server Component page router
  * - get()      - API GET request router
  * - post()     - API POST request router
  *
- * Named ssr.js to match tana-edge's expected filename convention.
+ * Uses React Server Components (RSC) with Flight protocol streaming.
+ * tana-edge handles the Flight serialization - we just return JSX trees.
  * All code is inlined for maximum performance (zero I/O during execution)
  */
 
@@ -33,7 +34,7 @@ export interface RouteFile {
 }
 
 export interface ProjectStructure {
-  /** SSR pages from app/ */
+  /** RSC pages from app/ */
   pages: RouteFile[]
   /** API GET handlers from api/ */
   apiGet: RouteFile[]
@@ -181,15 +182,14 @@ export async function generateContract(
     ? await bundleFile(structure.contract.filePath, 'contract', 0)
     : null
 
-  // Generate ssr.js content (unified contract)
+  // Generate contract.js content (unified RSC contract)
   const code = [
-    '// Tana Unified Contract',
+    '// Tana Unified Contract (RSC)',
     `// Generated: ${new Date().toISOString()}`,
     '',
-    '// External dependencies (provided by tana-edge)',
-    'import { renderToString } from "react-dom/server";',
-    'import { jsx, jsxs, Fragment } from "react/jsx-runtime";',
-    'import { useState, useEffect, useRef, useCallback, useMemo, useContext, createContext } from "react";',
+    '// RSC uses the __rsc global provided by tana-edge rsc-runtime.js',
+    '// jsx, Fragment, Suspense are available globally',
+    '// No react-dom/server imports needed - tana-edge handles Flight serialization',
     '',
     '// Tana runtime modules (provided by tana-edge)',
     'import { json, status } from "tana/http";',
@@ -200,7 +200,7 @@ export async function generateContract(
     '',
     contractBundle?.code || '// No contract() function defined',
     '',
-    '// ========== Page Components ==========',
+    '// ========== Page Components (Server Components) ==========',
     '',
     ...pageBundles.map(b => b.code),
     '',
@@ -210,9 +210,9 @@ export async function generateContract(
     '',
     ...postBundles.map(b => b.code),
     '',
-    '// ========== SSR Router ==========',
+    '// ========== RSC Page Router ==========',
     '',
-    generateSSRRouter(structure.pages, pageBundles),
+    generateRSCRouter(structure.pages, pageBundles),
     '',
     '// ========== API Routers ==========',
     '',
@@ -239,7 +239,9 @@ async function bundleFile(filePath: string, type: string, index: number): Promis
     platform: 'neutral',
     write: false,
     external: [
-      'react', 'react-dom', 'react-dom/server', 'react/jsx-runtime',
+      // RSC: We use the global jsx/Fragment/Suspense from tana-edge's rsc-runtime.js
+      // No react-dom/server needed - tana-edge handles Flight serialization
+      'react', 'react-dom', 'react/jsx-runtime',
       // Tana runtime modules (provided by tana-edge)
       // Note: tana/db is NOT external - it gets bundled from lib/db/ with query builder code
       'tana/http', 'tana/net', 'tana/kv', 'tana/block', 'tana/context', 'tana/tx', 'tana/core',
@@ -307,60 +309,24 @@ async function bundleFile(filePath: string, type: string, index: number): Promis
 }
 
 /**
- * Generate SSR router function
+ * Generate RSC page router
+ * Returns async Page() function that tana-edge will render via Flight protocol
  * Components are defined at module top level, this just routes to them
  */
-function generateSSRRouter(pages: RouteFile[], bundles: BundleResult[]): string {
+function generateRSCRouter(pages: RouteFile[], bundles: BundleResult[]): string {
   if (pages.length === 0) {
-    return `export function ssr(request) {
-  return {
-    status: 404,
-    body: '<!DOCTYPE html><html><body><h1>404 Not Found</h1></body></html>',
-    headers: { 'Content-Type': 'text/html' }
-  };
-}`
-  }
-
-  const cases = pages.map((page, i) => {
-    const componentName = bundles[i].componentName
-
-    if (page.params) {
-      // Dynamic route - use pattern matching
-      const pattern = page.routePath.split('/').map(seg =>
-        seg.startsWith(':') ? '([^/]+)' : seg
-      ).join('\\/')
-
-      return `    // ${page.routePath}
-    if (request.path.match(/^${pattern}$/)) {
-      const params = extractParams(request.path, "${page.routePath}");
-      const html = renderToString(jsx(${componentName}, { request, params }));
-      return { status: 200, body: wrapHtml(html), headers: { 'Content-Type': 'text/html' } };
-    }`
-    } else {
-      // Static route
-      return `    case '${page.routePath}':
-      return {
-        status: 200,
-        body: wrapHtml(renderToString(jsx(${componentName}, { request }))),
-        headers: { 'Content-Type': 'text/html' }
-      };`
-    }
-  }).join('\n\n')
-
-  return `// HTML wrapper for SSR output
-// Includes client.js for hydration - in production, client.js is served from the same contract directory
-function wrapHtml(content) {
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="styles.css"></head><body><div id="root">' + content + '</div><script type="module" src="client.js"></script></body></html>';
+    return `// No pages defined
+export async function Page(props) {
+  return jsx('div', { children: '404 - Page Not Found' });
 }
 
 export function Get(request) {
-  const { path, query, headers, method } = request;
+  const { path, method } = request;
 
-  // Handle API routes - delegate to get/post handlers
-  // Note: tana-edge passes path without leading '/' (e.g., 'api' not '/api')
+  // Handle API routes
   if (path.startsWith('/api') || path.startsWith('api')) {
-    const apiPath = path.startsWith('/api') ? path.slice(4) : path.slice(3);  // Remove 'api' or '/api' prefix
-    const normalizedPath = apiPath === '' ? '/' : (apiPath.startsWith('/') ? apiPath : '/' + apiPath);  // Ensure leading slash
+    const apiPath = path.startsWith('/api') ? path.slice(4) : path.slice(3);
+    const normalizedPath = apiPath === '' ? '/' : (apiPath.startsWith('/') ? apiPath : '/' + apiPath);
     const apiRequest = { ...request, path: normalizedPath };
 
     if (method === 'POST') {
@@ -369,20 +335,35 @@ export function Get(request) {
     return get(apiRequest);
   }
 
-  // SSR route matching
-  switch (path) {
-${cases}
-
-    default:
-      return {
-        status: 404,
-        body: '<!DOCTYPE html><html><body><h1>404 Not Found</h1></body></html>',
-        headers: { 'Content-Type': 'text/html' }
-      };
+  // For page routes, return null - tana-edge will call Page() directly
+  return null;
+}`
   }
-}
 
-// Helper: Extract dynamic params from path
+  // Generate route matching for Page component
+  const pageMatches = pages.map((page, i) => {
+    const componentName = bundles[i].componentName
+
+    if (page.params) {
+      // Dynamic route - use pattern matching
+      const pattern = page.routePath.split('/').map(seg =>
+        seg.startsWith(':') ? '([^/]+)' : seg
+      ).join('\\/')
+
+      return `  // ${page.routePath}
+  if (path.match(/^${pattern}$/)) {
+    const params = extractParams(path, "${page.routePath}");
+    return jsx(${componentName}, { request: props.request, params });
+  }`
+    } else {
+      // Static route
+      return `  if (path === '${page.routePath}') {
+    return jsx(${componentName}, { request: props.request });
+  }`
+    }
+  }).join('\n\n')
+
+  return `// Helper: Extract dynamic params from path
 function extractParams(path, pattern) {
   const segments = path.split('/').filter(Boolean);
   const patternSegments = pattern.split('/').filter(Boolean);
@@ -395,6 +376,48 @@ function extractParams(path, pattern) {
   });
 
   return params;
+}
+
+/**
+ * RSC Page Router - Async Server Component
+ * tana-edge calls this and serializes the result via Flight protocol
+ */
+export async function Page(props = {}) {
+  const path = props.request?.path || '/';
+
+${pageMatches}
+
+  // 404 fallback
+  return jsx('div', {
+    style: { padding: '40px', textAlign: 'center' },
+    children: [
+      jsx('h1', { key: 'title', children: '404' }),
+      jsx('p', { key: 'msg', children: 'Page not found: ' + path })
+    ]
+  });
+}
+
+/**
+ * Get handler for API routes
+ * Page routes are handled by Page() via RSC
+ */
+export function Get(request) {
+  const { path, method } = request;
+
+  // Handle API routes - delegate to get/post handlers
+  if (path.startsWith('/api') || path.startsWith('api')) {
+    const apiPath = path.startsWith('/api') ? path.slice(4) : path.slice(3);
+    const normalizedPath = apiPath === '' ? '/' : (apiPath.startsWith('/') ? apiPath : '/' + apiPath);
+    const apiRequest = { ...request, path: normalizedPath };
+
+    if (method === 'POST') {
+      return post(apiRequest);
+    }
+    return get(apiRequest);
+  }
+
+  // For page routes, return null - tana-edge will use Page() via RSC
+  return null;
 }`
 }
 

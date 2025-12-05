@@ -1,6 +1,5 @@
 # Build artifacts
 blockchain/contract.js
-blockchain/ssr.js
 
 # Test artifacts
 playwright-report/

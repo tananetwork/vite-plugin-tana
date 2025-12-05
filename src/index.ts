@@ -30,7 +30,7 @@ export interface TanaPluginOptions {
   edgeBinary?: string
 
   /**
-   * Port for tana-edge SSR server
+   * Port for tana-edge RSC server
    * @default 8506
    */
   edgePort?: number
@@ -42,7 +42,7 @@ export interface TanaPluginOptions {
   vitePort?: number
 
   /**
-   * Contract ID to use for SSR and API
+   * Contract ID for RSC and API routing
    * In dev mode, this is the folder name (e.g., 'blockchain')
    * In production, this becomes the contract ID on the blockchain
    * @default 'blockchain'
@@ -102,7 +102,7 @@ interface RouteManifest {
  * Vite plugin for Tana framework
  *
  * Enables Rails-like full-stack development with:
- * - SSR via tana-edge (same runtime as production)
+ * - React Server Components (RSC) via tana-edge with Flight protocol streaming
  * - HMR for rapid development
  * - Pre-bundled React (no need to bundle React in contracts)
  */
@@ -359,7 +359,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
       })
 
       // Middleware to proxy /api requests to tana-edge
-      // API requests are routed through the same SSR endpoint.
+      // API requests are routed through tana-edge.
       // The generated Get() function detects /api paths and delegates to get()/post()
       server.middlewares.use(async (req, res, next) => {
         // Only handle /api/* requests
@@ -388,7 +388,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
             })
           }
 
-          // Pass the full /api path to tana-edge SSR endpoint
+          // Pass the full /api path to tana-edge
           // The Get() function will detect /api and route to get()/post() handlers
           const response = await proxyToEdge(req.url, req.method || 'GET', body)
 
@@ -403,7 +403,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
         }
       })
 
-      // Middleware to proxy SSR requests to tana-edge
+      // Middleware to proxy RSC page requests to tana-edge
       server.middlewares.use(async (req, res, next) => {
         // Skip for static assets, HMR, and Vite internals
         if (
@@ -433,7 +433,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
           res.setHeader('Content-Type', 'text/html')
           res.end(injectedHtml)
         } catch (error) {
-          console.error('[tana] SSR Error:', error)
+          console.error('[tana] RSC Error:', error)
           next(error)
         }
       })
@@ -762,7 +762,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
       : ''
 
     // Inject Vite-processed stylesheet to prevent FOUC (Flash of Unstyled Content)
-    // This ensures CSS loads immediately with the SSR HTML, not after JS hydration
+    // This ensures CSS loads immediately with the RSC HTML, not after JS hydration
     const viteAssets = `
     ${stylesheetLink}<script type="module" src="/@vite/client"></script>
     <script type="module">
@@ -954,8 +954,8 @@ function printTanaBanner(vitePort: number, edgePort: number) {
 }
 
 /**
- * Generate a virtual module for client-side hydration
- * This module imports all page components and hydrates the correct one based on the URL
+ * Generate a virtual module for RSC client-side Flight parsing and hydration
+ * This module fetches the Flight stream and reconstructs the React tree
  */
 function generateHydrationModule(structure: ProjectStructure | null, root: string): string {
   if (!structure || structure.pages.length === 0) {
@@ -965,97 +965,194 @@ console.log('[tana] No pages to hydrate');
 `
   }
 
-  // Generate imports for all page components
-  const imports = structure.pages.map((page, i) => {
-    const relativePath = path.relative(root, page.filePath).replace(/\\/g, '/')
-    return `import Page_${i} from '/${relativePath}';`
-  }).join('\n')
+  // For RSC, we don't import page components on the client
+  // Server components stay on the server - we just receive the Flight stream
+  // Only client components (marked with 'use client') need to be registered
 
-  // Generate route matching logic
-  const routes = structure.pages.map((page, i) => {
-    if (page.params && page.params.length > 0) {
-      // Dynamic route - generate regex pattern
-      const pattern = page.routePath.split('/').map(seg =>
-        seg.startsWith(':') ? '([^/]+)' : seg
-      ).join('\\/')
-      return `  { path: /^${pattern}$/, component: Page_${i}, params: ${JSON.stringify(page.params)} }`
-    } else {
-      // Static route
-      return `  { path: '${page.routePath}', component: Page_${i} }`
+  return `// Tana RSC Hydration Module (auto-generated)
+// Uses Flight protocol to receive server-rendered component tree
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+
+// Flight protocol markers
+const FLIGHT_ELEMENT = '$';
+const FLIGHT_LAZY = '$L';
+const FLIGHT_CLIENT_REF = '$C';
+const FLIGHT_UNDEFINED = '$undefined';
+const FLIGHT_PROMISE = '$@';
+
+// Client component registry - populated by 'use client' components
+const clientComponents = new Map();
+
+// For dev, client components are registered globally by their modules
+if (typeof window !== 'undefined') {
+  window.__registerClientComponent = (moduleId, Component) => {
+    clientComponents.set(moduleId, Component);
+  };
+}
+
+// Row cache for Flight response
+let rowCache = new Map();
+let promiseCache = new Map();
+let reactRoot = null;
+
+function parseFlightRow(line) {
+  const colonIndex = line.indexOf(':');
+  if (colonIndex === -1) return null;
+  const id = parseInt(line.slice(0, colonIndex), 10);
+  const json = line.slice(colonIndex + 1);
+  return { id, value: JSON.parse(json) };
+}
+
+function createStreamingPromise(id) {
+  let resolve, reject;
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+  promise._resolve = resolve;
+  promise._reject = reject;
+  promise._id = id;
+  return promise;
+}
+
+function flightToReact(value) {
+  if (value === null) return null;
+  if (value === FLIGHT_UNDEFINED) return undefined;
+
+  if (typeof value === 'string') {
+    if (value.startsWith(FLIGHT_LAZY)) {
+      const id = parseInt(value.slice(2), 10);
+      if (rowCache.has(id)) {
+        return flightToReact(rowCache.get(id));
+      }
+      return React.createElement('div', { className: 'loading' }, 'Loading...');
     }
-  }).join(',\n')
-
-  return `// Tana Hydration Module (auto-generated)
-import { hydrateRoot, createRoot } from 'react-dom/client';
-import { createElement } from 'react';
-
-${imports}
-
-const routes = [
-${routes}
-];
-
-// Match current URL to a route and hydrate
-function hydrate() {
-  let path = window.location.pathname;
-
-  // Strip contract base path if present (e.g., /contracts/{uuid}/)
-  // This allows the app to work when served at a sub-path
-  const contractMatch = path.match(/^\\/contracts\\/[a-f0-9-]{36}(\\/.*)?$/);
-  if (contractMatch) {
-    path = contractMatch[1] || '/';
+    if (value.startsWith(FLIGHT_PROMISE)) {
+      const id = parseInt(value.slice(2), 10);
+      if (!promiseCache.has(id)) {
+        promiseCache.set(id, createStreamingPromise(id));
+      }
+      return promiseCache.get(id);
+    }
+    return value;
   }
 
-  // Normalize: ensure path starts with / and handle trailing slashes
-  if (!path.startsWith('/')) path = '/' + path;
-  if (path !== '/' && path.endsWith('/')) path = path.slice(0, -1);
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
 
-  const root = document.getElementById('root');
+  if (Array.isArray(value)) {
+    if (value[0] === FLIGHT_ELEMENT) {
+      const [, type, key, props] = value;
+      return createReactElement(type, key, props);
+    }
+    return value.map(item => flightToReact(item));
+  }
 
-  if (!root) {
-    console.error('[tana] No #root element found for hydration');
+  if (typeof value === 'object') {
+    const result = {};
+    for (const [k, v] of Object.entries(value)) {
+      result[k] = flightToReact(v);
+    }
+    return result;
+  }
+
+  return value;
+}
+
+function createReactElement(type, key, props) {
+  if (type === '$Suspense') {
+    return React.createElement(
+      React.Suspense,
+      { key, fallback: flightToReact(props?.fallback) },
+      flightToReact(props?.children)
+    );
+  }
+
+  if (type.startsWith(FLIGHT_CLIENT_REF)) {
+    const moduleId = type.slice(2);
+    const Component = clientComponents.get(moduleId);
+    if (!Component) {
+      console.warn('[tana] Client component not registered:', moduleId);
+      return React.createElement('div', { key, style: { color: 'red' } }, \`Missing: \${moduleId}\`);
+    }
+    const convertedProps = props ? flightToReact(props) : {};
+    return React.createElement(Component, { key, ...convertedProps });
+  }
+
+  const convertedProps = props ? flightToReact(props) : {};
+  const { children, ...restProps } = convertedProps;
+  return React.createElement(type, { key, ...restProps }, children);
+}
+
+function render() {
+  if (!rowCache.has(0)) return;
+  const rootEl = document.getElementById('root');
+  if (!rootEl) return;
+
+  if (!reactRoot) {
+    reactRoot = createRoot(rootEl);
+  }
+  reactRoot.render(flightToReact(rowCache.get(0)));
+}
+
+async function loadPage() {
+  // In dev mode, tana-edge serves RSC at the same path
+  // The middleware handles routing to the RSC endpoint
+  const pathname = window.location.pathname;
+
+  // Fetch Flight stream from current URL
+  // tana-edge returns Flight format for RSC requests
+  const response = await fetch(pathname, {
+    headers: { 'Accept': 'text/x-component' }
+  });
+
+  if (!response.ok) {
+    console.error('[tana] RSC fetch failed:', response.status);
     return;
   }
 
-  // Find matching route
-  for (const route of routes) {
-    if (typeof route.path === 'string') {
-      // Static route - exact match
-      if (route.path === path) {
-        hydrateRoot(root, createElement(route.component, {}));
-        return;
-      }
-    } else {
-      // Dynamic route - regex match
-      const match = path.match(route.path);
-      if (match) {
-        // Extract params from match groups
-        const params = {};
-        route.params?.forEach((name, i) => {
-          params[name] = match[i + 1];
-        });
-        hydrateRoot(root, createElement(route.component, { params }));
-        return;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\\n');
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      if (line.trim()) {
+        const row = parseFlightRow(line);
+        if (row) {
+          rowCache.set(row.id, row.value);
+          render();
+        }
       }
     }
   }
 
-  console.warn('[tana] No matching route for hydration:', path);
+  if (buffer.trim()) {
+    const row = parseFlightRow(buffer);
+    if (row) {
+      rowCache.set(row.id, row.value);
+      render();
+    }
+  }
 }
 
-// Hydrate when DOM is ready
+// Start loading when DOM is ready
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', hydrate);
+  document.addEventListener('DOMContentLoaded', loadPage);
 } else {
-  hydrate();
+  loadPage();
 }
 `
 }
 
 /**
- * Generate client entry code for production builds
+ * Generate client entry code for production RSC builds
  * This creates a standalone TypeScript file that esbuild can compile
- * (different from generateHydrationModule which returns a string for Vite's virtual module)
+ * Uses Flight protocol to receive and render server component output
  */
 function generateClientEntryCode(structure: ProjectStructure, root: string): string {
   if (!structure || structure.pages.length === 0) {
@@ -1064,97 +1161,181 @@ console.log('[tana] No pages to hydrate');
 `
   }
 
-  // Generate imports for all page components
-  const imports = structure.pages.map((page, i) => {
-    const relativePath = path.relative(root, page.filePath).replace(/\\/g, '/')
-    // Use relative path from .tana/ directory (where this file will be written)
-    return `import Page_${i} from '../${relativePath}';`
-  }).join('\n')
+  // For RSC, we don't import server components
+  // The Flight protocol sends the rendered tree from the server
 
-  // Generate route definitions
-  const routes = structure.pages.map((page, i) => {
-    if (page.params && page.params.length > 0) {
-      // Dynamic route - generate regex pattern
-      const pattern = page.routePath.split('/').map(seg =>
-        seg.startsWith(':') ? '([^/]+)' : seg
-      ).join('\\\\/')
-      return `  { path: /^${pattern}$/, component: Page_${i}, params: ${JSON.stringify(page.params)} }`
-    } else {
-      // Static route
-      return `  { path: '${page.routePath}', component: Page_${i} }`
-    }
-  }).join(',\n')
+  return `// Tana RSC Client Entry (auto-generated for production)
+// Uses Flight protocol to receive server-rendered component tree
+import React from 'react';
+import { createRoot } from 'react-dom/client';
 
-  return `// Tana Client Entry (auto-generated for production)
-// This file is generated when no src/client.tsx exists
-import { hydrateRoot } from 'react-dom/client';
-import { createElement } from 'react';
+// Flight protocol markers
+const FLIGHT_ELEMENT = '$';
+const FLIGHT_LAZY = '$L';
+const FLIGHT_CLIENT_REF = '$C';
+const FLIGHT_UNDEFINED = '$undefined';
+const FLIGHT_PROMISE = '$@';
 
-${imports}
+// Client component registry
+const clientComponents = new Map<string, React.ComponentType<any>>();
 
-interface Route {
-  path: string | RegExp;
-  component: React.ComponentType<any>;
-  params?: string[];
+// Export for client components to register themselves
+(window as any).__registerClientComponent = (moduleId: string, Component: React.ComponentType<any>) => {
+  clientComponents.set(moduleId, Component);
+};
+
+// Row cache for Flight response
+let rowCache = new Map<number, any>();
+let promiseCache = new Map<number, any>();
+let reactRoot: any = null;
+
+function parseFlightRow(line: string): { id: number; value: any } | null {
+  const colonIndex = line.indexOf(':');
+  if (colonIndex === -1) return null;
+  const id = parseInt(line.slice(0, colonIndex), 10);
+  const json = line.slice(colonIndex + 1);
+  return { id, value: JSON.parse(json) };
 }
 
-const routes: Route[] = [
-${routes}
-];
+function createStreamingPromise(id: number) {
+  let resolve: (value: any) => void;
+  let reject: (reason: any) => void;
+  const promise = new Promise((res, rej) => { resolve = res!; reject = rej!; });
+  (promise as any)._resolve = resolve!;
+  (promise as any)._reject = reject!;
+  (promise as any)._id = id;
+  return promise;
+}
 
-// Match current URL to a route and hydrate
-function hydrate() {
-  let pathname = window.location.pathname;
+function flightToReact(value: any): any {
+  if (value === null) return null;
+  if (value === FLIGHT_UNDEFINED) return undefined;
 
-  // Strip contract base path if present (e.g., /contracts/{uuid}/)
-  // This allows the app to work when served at a sub-path
-  const contractMatch = pathname.match(/^\\/contracts\\/[a-f0-9-]{36}(\\/.*)?$/);
-  if (contractMatch) {
-    pathname = contractMatch[1] || '/';
+  if (typeof value === 'string') {
+    if (value.startsWith(FLIGHT_LAZY)) {
+      const id = parseInt(value.slice(2), 10);
+      if (rowCache.has(id)) {
+        return flightToReact(rowCache.get(id));
+      }
+      return React.createElement('div', { className: 'loading' }, 'Loading...');
+    }
+    if (value.startsWith(FLIGHT_PROMISE)) {
+      const id = parseInt(value.slice(2), 10);
+      if (!promiseCache.has(id)) {
+        promiseCache.set(id, createStreamingPromise(id));
+      }
+      return promiseCache.get(id);
+    }
+    return value;
   }
 
-  // Normalize: ensure path starts with / and handle trailing slashes
-  if (!pathname.startsWith('/')) pathname = '/' + pathname;
-  if (pathname !== '/' && pathname.endsWith('/')) pathname = pathname.slice(0, -1);
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
 
-  const root = document.getElementById('root');
+  if (Array.isArray(value)) {
+    if (value[0] === FLIGHT_ELEMENT) {
+      const [, type, key, props] = value;
+      return createReactElement(type, key, props);
+    }
+    return value.map(item => flightToReact(item));
+  }
 
-  if (!root) {
-    console.error('[tana] No #root element found for hydration');
+  if (typeof value === 'object') {
+    const result: Record<string, any> = {};
+    for (const [k, v] of Object.entries(value)) {
+      result[k] = flightToReact(v);
+    }
+    return result;
+  }
+
+  return value;
+}
+
+function createReactElement(type: string, key: string | null, props: any) {
+  if (type === '$Suspense') {
+    return React.createElement(
+      React.Suspense,
+      { key, fallback: flightToReact(props?.fallback) },
+      flightToReact(props?.children)
+    );
+  }
+
+  if (type.startsWith(FLIGHT_CLIENT_REF)) {
+    const moduleId = type.slice(2);
+    const Component = clientComponents.get(moduleId);
+    if (!Component) {
+      console.warn('[tana] Client component not registered:', moduleId);
+      return React.createElement('div', { key, style: { color: 'red' } }, \`Missing: \${moduleId}\`);
+    }
+    const convertedProps = props ? flightToReact(props) : {};
+    return React.createElement(Component, { key, ...convertedProps });
+  }
+
+  const convertedProps = props ? flightToReact(props) : {};
+  const { children, ...restProps } = convertedProps;
+  return React.createElement(type, { key, ...restProps }, children);
+}
+
+function render() {
+  if (!rowCache.has(0)) return;
+  const rootEl = document.getElementById('root');
+  if (!rootEl) return;
+
+  if (!reactRoot) {
+    reactRoot = createRoot(rootEl);
+  }
+  reactRoot.render(flightToReact(rowCache.get(0)));
+}
+
+async function loadPage() {
+  const pathname = window.location.pathname;
+
+  // Fetch Flight stream from RSC endpoint
+  const response = await fetch(pathname, {
+    headers: { 'Accept': 'text/x-component' }
+  });
+
+  if (!response.ok) {
+    console.error('[tana] RSC fetch failed:', response.status);
     return;
   }
 
-  // Find matching route
-  for (const route of routes) {
-    if (typeof route.path === 'string') {
-      // Static route - exact match
-      if (route.path === pathname) {
-        hydrateRoot(root, createElement(route.component, {}));
-        return;
-      }
-    } else {
-      // Dynamic route - regex match
-      const match = pathname.match(route.path);
-      if (match) {
-        // Extract params from match groups
-        const params: Record<string, string> = {};
-        route.params?.forEach((name, i) => {
-          params[name] = match[i + 1];
-        });
-        hydrateRoot(root, createElement(route.component, { params }));
-        return;
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\\n');
+    buffer = lines.pop()!;
+
+    for (const line of lines) {
+      if (line.trim()) {
+        const row = parseFlightRow(line);
+        if (row) {
+          rowCache.set(row.id, row.value);
+          render();
+        }
       }
     }
   }
 
-  console.warn('[tana] No matching route for hydration:', pathname);
+  if (buffer.trim()) {
+    const row = parseFlightRow(buffer);
+    if (row) {
+      rowCache.set(row.id, row.value);
+      render();
+    }
+  }
 }
 
-// Hydrate when DOM is ready
+// Start loading when DOM is ready
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', hydrate);
+  document.addEventListener('DOMContentLoaded', loadPage);
 } else {
-  hydrate();
+  loadPage();
 }
 `
 }

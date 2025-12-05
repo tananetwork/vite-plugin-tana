@@ -1,11 +1,14 @@
 import React from 'react'
 
 /**
- * Example SSR Page Component
+ * React Server Component (RSC) Page
  * This demonstrates the unified contract architecture with file-based routing.
  *
  * File location: app/page.tsx
  * Route: / (root)
+ *
+ * This is a Server Component - it runs on the server and streams HTML via Flight protocol.
+ * For interactive components, use 'use client' directive.
  */
 export default function HomePage() {
   return (
@@ -15,7 +18,7 @@ export default function HomePage() {
           Welcome to tana framework
         </h1>
         <p className="text-lg text-gray-700 mb-8">
-          This is a server-side rendered React 19 web app
+          React Server Components with Flight protocol streaming
         </p>
 
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -23,10 +26,10 @@ export default function HomePage() {
             What you're seeing:
           </h2>
           <ul className="list-disc list-inside space-y-2 text-gray-700">
-            <li>Server-side rendered React with instant first paint</li>
+            <li>React Server Components with streaming HTML</li>
             <li>File-based routing (this is <code className="bg-gray-100 px-2 py-1 rounded">app/page.tsx</code>)</li>
             <li>Unified contract with all code inlined for zero I/O</li>
-            <li>Automatic client hydration</li>
+            <li>Flight protocol for progressive loading</li>
           </ul>
         </div>
 
@@ -36,7 +39,7 @@ export default function HomePage() {
               🎯 Features
             </h3>
             <ul className="space-y-1 text-gray-700">
-              <li>• Server-side rendering</li>
+              <li>• React Server Components</li>
               <li>• API routes</li>
               <li>• Blockchain integration</li>
               <li>• Hot module replacement</li>
@@ -48,10 +51,10 @@ export default function HomePage() {
               ⚡ Performance
             </h3>
             <ul className="space-y-1 text-gray-700">
-              <li>• 1-5ms TTFB</li>
+              <li>• Streaming TTFB</li>
               <li>• Zero filesystem I/O</li>
               <li>• Inline bundling</li>
-              <li>• Switch-based routing</li>
+              <li>• Progressive loading</li>
             </ul>
           </div>
         </div>

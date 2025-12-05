@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import tanaPlugin from '@tananetwork/vite-plugin-tana'
 
 export default defineConfig({
+  root: 'public',
   plugins: [
     react(),
     tanaPlugin({

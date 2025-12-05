@@ -1,9 +1,9 @@
 /**
- * Tana Framework Production Build Script
+ * Tana Framework Production Build Script (RSC)
  *
  * Produces a unified contract bundle that runs on tana-edge:
- *   - contract.js : Unified contract with 5 exports (init, contract, ssr, get, post)
- *   - client.js   : Client bundle for browser hydration
+ *   - contract.js : Unified RSC contract with 5 exports (init, contract, Page, get, post)
+ *   - client.js   : Client bundle for browser hydration via Flight protocol
  *   - index.html  : HTML shell with proper references
  *   - styles.css  : Extracted CSS (when applicable)
  *
@@ -163,7 +163,7 @@ export async function tanaBuild(config: TanaBuildConfig): Promise<BuildResult> {
 
   console.log(`\n✅ Build complete in ${buildTime}ms`)
   console.log(`\n📁 Output: ${contractDir}/`)
-  console.log(`   contract.js - Unified contract (5 exports: init, contract, ssr, get, post)`)
+  console.log(`   contract.js - Unified RSC contract (5 exports: init, contract, Page, get, post)`)
   console.log(`   client.js   - Client bundle (hydration)`)
   console.log(`   index.html  - HTML shell`)
   if (cssBundle) {
@@ -172,7 +172,7 @@ export async function tanaBuild(config: TanaBuildConfig): Promise<BuildResult> {
 
   console.log(`\n🚀 Deploy to tana-edge:`)
   console.log(`   cp -r ${contractDir} /path/to/contracts/`)
-  console.log(`   # SSR requests: http://localhost:8506/${contractId}`)
+  console.log(`   # RSC requests: http://localhost:8506/rsc/${contractId}`)
   console.log(`   # API requests: http://localhost:8506/${contractId}/api/*\n`)
 
   return {
@@ -208,8 +208,8 @@ function generateHtmlShell(options: {
   const { contractId, hasCSS } = options
 
   // Use relative paths so they work with both:
-  // - subdomain routing (https://react-ssr.tana.network/client.js)
-  // - path routing (http://localhost:8506/react-ssr/client.js)
+  // - subdomain routing (https://my-app.tana.network/client.js)
+  // - path routing (http://localhost:8506/rsc/my-app/client.js)
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -267,12 +267,12 @@ Options:
   --help            Show this help
 
 Directory Structure:
-  app/              SSR pages (file-based routing)
+  app/              RSC pages (file-based routing)
   api/              API endpoints (get.ts, post.ts per route)
   blockchain/       On-chain logic (init.ts, contract.ts)
 
 Output:
-  contract.js       Unified contract with 5 exports (init, contract, ssr, get, post)
+  contract.js       Unified RSC contract with 5 exports (init, contract, Page, get, post)
   client.js         Client bundle for browser hydration
   index.html        HTML shell
   styles.css        Extracted styles (if present)
