@@ -329,7 +329,8 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
         ? path.resolve(projectRoot, contractsDir)
         : projectRoot
 
-      resolvedEdgeBinary = edgeBinary || findTanaEdgeBinary(root)
+      // Use projectRoot (not Vite's root) since node_modules is at project level
+      resolvedEdgeBinary = edgeBinary || findTanaEdgeBinary(projectRoot)
       out.log('config', `tana-edge binary: ${resolvedEdgeBinary}`)
 
       if (stylesheet === false) {
