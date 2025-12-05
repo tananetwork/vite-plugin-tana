@@ -66,15 +66,28 @@ export function findTanaEdgeBinary(root: string): string {
   const platformPkg = platformMap[platformKey]
 
   if (platformPkg) {
-    const platformBinPath = path.join(
+    // Check new tana-edge-* packages first
+    const edgeBinPath = path.join(
+      root,
+      'node_modules',
+      '@tananetwork',
+      `tana-edge-${platformPkg}`,
+      'tana-edge'
+    )
+    if (fs.existsSync(edgeBinPath)) {
+      return edgeBinPath
+    }
+
+    // Fall back to legacy tana-* packages
+    const legacyBinPath = path.join(
       root,
       'node_modules',
       '@tananetwork',
       `tana-${platformPkg}`,
       'tana-edge'
     )
-    if (fs.existsSync(platformBinPath)) {
-      return platformBinPath
+    if (fs.existsSync(legacyBinPath)) {
+      return legacyBinPath
     }
   }
 

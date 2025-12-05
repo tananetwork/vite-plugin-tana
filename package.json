@@ -63,10 +63,9 @@
     "vitest": "^1.0.0"
   },
   "optionalDependencies": {
-    "@tananetwork/tana-darwin-arm64": "^0.2.0",
-    "@tananetwork/tana-darwin-x64": "^0.2.0",
-    "@tananetwork/tana-linux-arm64": "^0.2.0",
-    "@tananetwork/tana-linux-x64": "^0.2.0",
-    "@tananetwork/tana-windows-x64": "^0.2.0"
+    "@tananetwork/tana-edge-darwin-arm64": "^0.3.0",
+    "@tananetwork/tana-edge-darwin-x64": "^0.3.0",
+    "@tananetwork/tana-edge-linux-arm64": "^0.3.0",
+    "@tananetwork/tana-edge-linux-x64": "^0.3.0"
   }
 }
