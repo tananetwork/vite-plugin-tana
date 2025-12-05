@@ -2,162 +2,111 @@
  * Home Page - Server Component
  *
  * This is a React Server Component rendered by tana-edge.
- * It can directly access the database and return HTML via Flight protocol.
+ * Server components run on the server and stream HTML via Flight protocol.
+ * Client components (marked with 'use client') hydrate in the browser.
  */
 
+// Import client component - this will be hydrated in the browser
+import App from '../public/App'
+
 export default function Page() {
+  // This runs on the server only - safe to log server-only info
+  const serverTimestamp = new Date().toISOString()
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <header className="mb-12">
-          <h1 className="text-5xl font-bold text-slate-900 mb-4">
-            Welcome to Tana
-          </h1>
-          <p className="text-xl text-slate-600">
-            React Server Components on the blockchain with streaming Flight protocol
-          </p>
-        </header>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      {/* Server Component Section */}
+      <div className="p-8">
+        <div className="max-w-5xl mx-auto">
+          {/* Header */}
+          <header className="mb-8">
+            <h1 className="text-5xl font-bold text-slate-900 mb-4">
+              Tana Framework Demo
+            </h1>
+            <p className="text-xl text-slate-600">
+              Server Components + Client Components side by side
+            </p>
+          </header>
 
-        {/* Database APIs Section */}
-        <section className="mb-12">
-          <h2 className="text-3xl font-semibold text-slate-800 mb-6">
-            Database Access Patterns
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Rails-style Card */}
-            <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-2xl">💎</span>
-                <h3 className="text-xl font-semibold text-slate-800">Rails-style</h3>
-              </div>
-              <p className="text-slate-600 mb-4">
-                ActiveRecord-inspired API for familiar, readable queries
-              </p>
-              <div className="bg-slate-900 rounded-lg p-4 text-sm font-mono overflow-x-auto">
-                <pre className="text-green-400">{`import { model } from 'tana/db'
-import { products } from './schema'
-
-const Product = model(products)
-
-// Find all products
-await Product.all()
-
-// Filter with where
-await Product.where({ inStock: true })
-
-// Create a record
-await Product.create({ name: 'Widget' })`}</pre>
-              </div>
-              <p className="text-slate-500 text-sm mt-4">
-                Try: <code className="bg-slate-100 px-2 py-1 rounded">GET /api/products</code>
-              </p>
-            </div>
-
-            {/* Drizzle-style Card */}
-            <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-2xl">🔷</span>
-                <h3 className="text-xl font-semibold text-slate-800">Drizzle-style</h3>
-              </div>
-              <p className="text-slate-600 mb-4">
-                Type-safe query builder with full SQL expressiveness
-              </p>
-              <div className="bg-slate-900 rounded-lg p-4 text-sm font-mono overflow-x-auto">
-                <pre className="text-blue-400">{`import { db, eq, desc } from 'tana/db'
-import { orders } from './schema'
-
-// Select with type safety
-await db.select()
-  .from(orders)
-  .where(eq(orders.status, 'pending'))
-  .orderBy(desc(orders.createdAt))
-
-// Insert with returning
-await db.insert(orders)
-  .values({ customerName: 'John' })
-  .returning()`}</pre>
-              </div>
-              <p className="text-slate-500 text-sm mt-4">
-                Try: <code className="bg-slate-100 px-2 py-1 rounded">GET /api/orders</code>
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Architecture Section */}
-        <section className="mb-12">
-          <h2 className="text-3xl font-semibold text-slate-800 mb-6">
-            How It Works
-          </h2>
-
-          <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center">
-                <div className="text-4xl mb-3">📁</div>
-                <h4 className="font-semibold text-slate-800 mb-2">File-based Routing</h4>
-                <p className="text-slate-600 text-sm">
-                  <code className="bg-slate-100 px-1 rounded">app/page.tsx</code> → Pages<br />
-                  <code className="bg-slate-100 px-1 rounded">api/get.ts</code> → API routes
-                </p>
+          {/* Server vs Client Comparison */}
+          <section className="mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Server Component Info */}
+              <div className="bg-white rounded-xl shadow-lg p-6 border-2 border-blue-200">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-3xl">🖥️</span>
+                  <h2 className="text-2xl font-bold text-blue-800">Server Component</h2>
+                </div>
+                <div className="space-y-3">
+                  <p className="text-slate-600">
+                    This section rendered <strong>on the server</strong>.
+                    No JavaScript shipped to client for this code.
+                  </p>
+                  <div className="bg-blue-50 rounded-lg p-4 font-mono text-sm">
+                    <p className="text-blue-600">Server time:</p>
+                    <p className="text-blue-800 font-bold">{serverTimestamp}</p>
+                  </div>
+                  <ul className="text-sm text-slate-500 space-y-1">
+                    <li>✓ Zero client bundle size</li>
+                    <li>✓ Direct database access</li>
+                    <li>✓ Secrets stay on server</li>
+                    <li>✓ SEO friendly (real HTML)</li>
+                  </ul>
+                </div>
               </div>
 
-              <div className="text-center">
-                <div className="text-4xl mb-3">⚡</div>
-                <h4 className="font-semibold text-slate-800 mb-2">RSC + Flight</h4>
-                <p className="text-slate-600 text-sm">
-                  Server components stream via Flight protocol.
-                  Zero client-side bundling for server code.
-                </p>
-              </div>
-
-              <div className="text-center">
-                <div className="text-4xl mb-3">🔐</div>
-                <h4 className="font-semibold text-slate-800 mb-2">Isolated DB</h4>
-                <p className="text-slate-600 text-sm">
-                  Each contract gets its own PostgreSQL database.
-                  Automatic connection pooling.
-                </p>
+              {/* Client Component Info */}
+              <div className="bg-white rounded-xl shadow-lg p-6 border-2 border-purple-200">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-3xl">🌐</span>
+                  <h2 className="text-2xl font-bold text-purple-800">Client Component</h2>
+                </div>
+                <div className="space-y-3">
+                  <p className="text-slate-600">
+                    Components with <code className="bg-slate-100 px-1 rounded">'use client'</code>
+                    run in browser. Used for interactivity.
+                  </p>
+                  <div className="bg-purple-50 rounded-lg p-4 font-mono text-sm">
+                    <p className="text-purple-600">Directive:</p>
+                    <p className="text-purple-800 font-bold">'use client'</p>
+                  </div>
+                  <ul className="text-sm text-slate-500 space-y-1">
+                    <li>✓ useState, useEffect</li>
+                    <li>✓ Event handlers (onClick)</li>
+                    <li>✓ Browser APIs</li>
+                    <li>✓ Real-time updates</li>
+                  </ul>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        {/* File Structure Section */}
-        <section className="mb-12">
-          <h2 className="text-3xl font-semibold text-slate-800 mb-6">
-            Project Structure
-          </h2>
+          {/* Database APIs Section */}
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-slate-800 mb-4">
+              Database Access Patterns
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-900 rounded-lg p-4 text-sm font-mono">
+                <p className="text-emerald-400 mb-2">// Rails-style</p>
+                <pre className="text-slate-300">{`const Product = model(products)
+await Product.where({ inStock: true })`}</pre>
+                <p className="text-slate-500 mt-2">GET /api/products</p>
+              </div>
+              <div className="bg-slate-900 rounded-lg p-4 text-sm font-mono">
+                <p className="text-cyan-400 mb-2">// Drizzle-style</p>
+                <pre className="text-slate-300">{`await db.select().from(orders)
+  .where(eq(orders.status, 'pending'))`}</pre>
+                <p className="text-slate-500 mt-2">GET /api/orders</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
 
-          <div className="bg-slate-900 rounded-xl p-6 font-mono text-sm overflow-x-auto">
-            <pre className="text-slate-300">{`my-app/
-├── app/
-│   └── page.tsx           # Server Component (this page)
-├── api/
-│   ├── get.ts             # Root API handler
-│   ├── products/
-│   │   ├── get.ts         # Rails-style: GET /api/products
-│   │   └── post.ts        # Rails-style: POST /api/products
-│   └── orders/
-│       ├── get.ts         # Drizzle-style: GET /api/orders
-│       └── post.ts        # Drizzle-style: POST /api/orders
-├── blockchain/
-│   └── schema.ts          # Database schema definition
-└── public/
-    └── App.tsx            # Client component ('use client')`}</pre>
-          </div>
-        </section>
-
-        {/* Footer */}
-        <footer className="text-center text-slate-500 text-sm">
-          <p>
-            Built with <span className="text-red-500">♥</span> using{' '}
-            <a href="https://tana.network" className="text-blue-600 hover:underline">
-              Tana Framework
-            </a>
-          </p>
-        </footer>
+      {/* Client Component - Interactive Section */}
+      <div className="border-t-4 border-purple-400">
+        <App url="/" />
       </div>
     </div>
   )
