@@ -155,13 +155,75 @@ function render() {
   reactRoot.render(flightToReact(rowCache.get(0)));
 }
 
-async function loadPage() {
-  // In dev mode, tana-edge serves RSC at the same path
-  // The middleware handles routing to the RSC endpoint
-  const pathname = window.location.pathname;
+function processFlightData(flightJson) {
+  // Parse Flight rows from embedded data
+  const lines = flightJson.split('\\n');
+  for (const line of lines) {
+    if (line.trim()) {
+      const row = parseFlightRow(line);
+      if (row) {
+        rowCache.set(row.id, row.value);
+      }
+    }
+  }
+  render();
+}
 
-  // Fetch Flight stream from current URL
-  // tana-edge returns Flight format for RSC requests
+/**
+ * Hydrate client components that were rendered as placeholders by the server
+ * Server renders: <div data-tana-client="moduleId" data-tana-props="..."></div>
+ * We mount the actual React component into each placeholder
+ */
+function hydrateClientComponents() {
+  const placeholders = document.querySelectorAll('[data-tana-client]');
+  console.log('[tana] Found', placeholders.length, 'client component placeholders');
+
+  placeholders.forEach((placeholder) => {
+    const moduleId = placeholder.getAttribute('data-tana-client');
+    const propsJson = placeholder.getAttribute('data-tana-props') || '{}';
+
+    if (!moduleId) return;
+
+    const Component = clientComponents.get(moduleId);
+    if (!Component) {
+      console.warn('[tana] Client component not registered:', moduleId);
+      placeholder.innerHTML = '<span style="color: red;">Missing: ' + moduleId + '</span>';
+      return;
+    }
+
+    try {
+      const props = JSON.parse(propsJson);
+      const root = createRoot(placeholder);
+      root.render(React.createElement(Component, props));
+      console.log('[tana] Hydrated client component:', moduleId);
+    } catch (e) {
+      console.error('[tana] Failed to hydrate', moduleId, e);
+    }
+  });
+}
+
+async function loadPage() {
+  // Check for server-rendered HTML with embedded Flight data
+  const embeddedData = document.getElementById('__FLIGHT_DATA__');
+  const rootEl = document.getElementById('root');
+
+  if (embeddedData && rootEl && rootEl.children.length > 0) {
+    // HTML-first mode: Server rendered actual HTML
+    // Just hydrate client component placeholders
+    console.log('[tana] HTML-first mode: hydrating client components only');
+    hydrateClientComponents();
+    return;
+  }
+
+  if (embeddedData) {
+    // Flight-only mode: Have Flight data but need to render
+    const flightJson = embeddedData.textContent || '';
+    processFlightData(flightJson);
+    return;
+  }
+
+  // Fallback: Fetch Flight stream from current URL (CSR mode)
+  const pathname = window.location.pathname;
   const response = await fetch(pathname, {
     headers: { 'Accept': 'text/x-component' }
   });

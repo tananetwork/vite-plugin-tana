@@ -198,14 +198,47 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
 
   /**
    * Inject Vite's HMR client scripts and stylesheet into HTML
+   * If response is Flight JSON (not HTML), wrap it in an HTML shell first
    */
-  function injectViteClient(html: string): string {
+  function injectViteClient(response: string): string {
     const stylesheetLink = resolvedStylesheet
-      ? `<link rel="stylesheet" href="${resolvedStylesheet}">\n    `
+      ? `<link rel="stylesheet" href="${resolvedStylesheet}">`
       : ''
 
+    // Check if response is already HTML or raw Flight JSON
+    const isHtml = response.trim().startsWith('<!DOCTYPE') || response.trim().startsWith('<html')
+
+    if (!isHtml) {
+      // Flight JSON response - wrap in HTML shell
+      // The Flight payload is embedded as a script that the hydration module will parse
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tana App</title>
+  ${stylesheetLink}
+  <script type="module" src="/@vite/client"></script>
+  <script type="module">
+    import RefreshRuntime from '/@react-refresh'
+    RefreshRuntime.injectIntoGlobalHook(window)
+    window.$RefreshReg$ = () => {}
+    window.$RefreshSig$ = () => (type) => type
+    window.__vite_plugin_react_preamble_installed__ = true
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script id="__FLIGHT_DATA__" type="application/json">${response.replace(/</g, '\\u003c')}</script>
+  <script type="module" src="/@id/${VIRTUAL_HYDRATE_ID}"></script>
+</body>
+</html>`
+    }
+
+    // Already HTML - inject Vite assets
     const viteAssets = `
-    ${stylesheetLink}<script type="module" src="/@vite/client"></script>
+    ${stylesheetLink}
+    <script type="module" src="/@vite/client"></script>
     <script type="module">
       import RefreshRuntime from '/@react-refresh'
       RefreshRuntime.injectIntoGlobalHook(window)
@@ -215,7 +248,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
     </script>
     <script type="module" src="/@id/${VIRTUAL_HYDRATE_ID}"></script>
 `
-    return html.replace('</head>', `${viteAssets}</head>`)
+    return response.replace('</head>', `${viteAssets}</head>`)
   }
 
   /**
