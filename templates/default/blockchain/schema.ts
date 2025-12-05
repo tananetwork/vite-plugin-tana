@@ -1,47 +1,43 @@
 /**
  * Database Schema Definition
  *
- * Define your tables using tana/db's Drizzle-style builders.
- * Generate migrations with: npm run db:generate
+ * tana/db provides multiple ways to interact with your database:
  *
- * @example
- * ```typescript
- * // In your API handlers, you can query using:
+ * 1. Raw SQL - Direct queries with parameterized values
+ * 2. Drizzle-style - Type-safe query builder
+ * 3. Rails-style - ActiveRecord-inspired model API
  *
- * // 1. Raw SQL via tana/db
- * import { query } from 'tana/db'
- * const users = await query('SELECT * FROM posts WHERE published = $1', [true])
- *
- * // 2. Type-safe Drizzle-style queries
- * import { db, eq } from 'tana/db'
- * import { posts } from './schema'
- * const results = await db.select().from(posts).where(eq(posts.published, true))
- *
- * // 3. Rails-style models
- * import { model } from 'tana/db'
- * import { posts } from './schema'
- * const Post = model(posts)
- * const published = await Post.where({ published: true }).limit(10)
- * ```
+ * Each contract gets its own isolated PostgreSQL database.
+ * tana-edge handles connection pooling and isolation.
  */
 
-// Uncomment to use tana/db schema builders:
-//
-// import { table, text, uuid, timestamp, boolean } from 'tana/db'
-//
-// export const posts = table('posts', {
-//   id: uuid('id').primaryKey().defaultRandom(),
-//   title: text('title').notNull(),
-//   content: text('content'),
-//   published: boolean('published').default(false),
-//   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-//   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-// })
-//
-// export const comments = table('comments', {
-//   id: uuid('id').primaryKey().defaultRandom(),
-//   postId: uuid('post_id').notNull().references(() => posts.id),
-//   author: text('author').notNull(),
-//   content: text('content').notNull(),
-//   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-// })
+import { table, text, uuid, timestamp, boolean, integer } from 'tana/db'
+
+// ========== Products Table ==========
+export const products = table('products', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  description: text('description'),
+  price: integer('price').notNull(), // Stored in cents
+  inStock: boolean('in_stock').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
+
+// ========== Orders Table ==========
+export const orders = table('orders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  customerName: text('customer_name').notNull(),
+  customerEmail: text('customer_email').notNull(),
+  status: text('status').default('pending'), // pending, confirmed, shipped, delivered
+  total: integer('total').notNull(), // Stored in cents
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
+
+// ========== Order Items (Join Table) ==========
+export const orderItems = table('order_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orderId: uuid('order_id').notNull().references(() => orders.id),
+  productId: uuid('product_id').notNull().references(() => products.id),
+  quantity: integer('quantity').notNull().default(1),
+  priceAtTime: integer('price_at_time').notNull(), // Price when ordered
+})

@@ -592,7 +592,10 @@ export function Get(request) {
 
   // For page routes, return null - tana-edge will call Page() directly
   return null;
-}`
+}
+
+// Alias for tana-edge contract spec compatibility
+export const ssr = Page;`
   }
 
   // Generate route matching for Page component
@@ -673,7 +676,11 @@ export function Get(request) {
 
   // For page routes, return null - tana-edge will use Page() via RSC
   return null;
-}`
+}
+
+// Alias for tana-edge contract spec compatibility
+// tana-edge calls ssr() which delegates to our RSC Page() function
+export const ssr = Page;`
 }
 
 /**

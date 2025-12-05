@@ -7,9 +7,8 @@ export default defineConfig({
   plugins: [
     react(),
     tanaPlugin({
-      // tana-edge binary is automatically resolved from node_modules
-      // For local development with a custom binary, uncomment:
-      // edgeBinary: '/path/to/tana-edge',
+      // Use local tana-edge binary for development
+      edgeBinary: '/Users/samifouad/Projects/tana/edge/target/release/tana-edge',
     }),
   ],
 })

@@ -47,3 +47,6 @@ templates/**/dist/
 templates/**/.vite/
 templates/**/package-lock.json
 templates/**/blockchain/ssr.js
+templates/**/blockchain/contract.js
+templates/**/blockchain/client-components.js
+templates/**/bun.lock
