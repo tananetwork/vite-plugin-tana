@@ -14,6 +14,7 @@ import { detectStylesheet, findTanaEdgeBinary, findClientEntry } from './utils.j
 import { scanRoutes } from './routes.js'
 import { printTanaBanner } from './banner.js'
 import { generateHydrationModule, generateClientEntryCode } from './hydration.js'
+import { out } from '@tananetwork/stdio'
 
 // External modules
 import { tanaBuild } from './build.js'
@@ -76,7 +77,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
    */
   async function buildInitialContract() {
     try {
-      console.log('[tana] Building initial contract...')
+      out.log('build', 'contract...')
 
       // Scan project structure and store it for the hydration module
       projectStructure = await scanProject(projectRoot)
@@ -93,10 +94,10 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
       // Generate the unified contract.js
       await generateContract(structure, devOutDir)
 
-      console.log('[tana] ✅ Initial contract built')
-      console.log(`[tana]    ${structure.pages.length} page(s), ${structure.apiGet.length} GET handler(s), ${structure.apiPost.length} POST handler(s)`)
+      out.log('ready', 'contract built')
+      out.log('info', `${structure.pages.length} page(s), ${structure.apiGet.length} GET handler(s), ${structure.apiPost.length} POST handler(s)`)
     } catch (error) {
-      console.error('[tana] ❌ Initial contract build failed:', error)
+      out.error('build', `contract failed: ${error}`)
     }
   }
 
@@ -104,7 +105,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
    * Start the tana-edge binary
    */
   function startTanaEdge() {
-    console.log(`[tana] Starting tana-edge on port ${edgePort}...`)
+    out.log('start', `tana-edge on port ${edgePort}`)
 
     const env: Record<string, string> = {
       ...process.env as Record<string, string>,
@@ -124,34 +125,34 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
 
     tanaEdgeProcess.stdout?.on('data', (data) => {
       const output = data.toString()
-      console.log('[tana-edge]', output.trim())
+      out.log('edge', output.trim())
 
       if (output.includes('tana-edge is running') || output.includes('listening')) {
         edgeReady = true
         resolveEdgeReady()
-        console.log('[tana] ✅ tana-edge is ready!')
+        out.log('ready', 'tana-edge')
       }
     })
 
     tanaEdgeProcess.stderr?.on('data', (data) => {
       const output = data.toString()
-      console.log('[tana-edge]', output.trim())
+      out.log('edge', output.trim())
 
       if (output.includes('tana-edge is running') || output.includes('listening')) {
         edgeReady = true
         resolveEdgeReady()
-        console.log('[tana] ✅ tana-edge is ready!')
+        out.log('ready', 'tana-edge')
       }
     })
 
     tanaEdgeProcess.on('error', (error) => {
-      console.error('[tana] Failed to start tana-edge:', error)
-      console.error('[tana] Make sure tana-edge binary is in PATH or specify edgeBinary option')
+      out.error('edge', `failed to start: ${error}`)
+      out.error('hint', 'make sure tana-edge binary is in PATH or specify edgeBinary option')
     })
 
     tanaEdgeProcess.on('exit', (code) => {
       if (code !== 0 && code !== null) {
-        console.error(`[tana] tana-edge exited with code ${code}`)
+        out.error('edge', `exited with code ${code}`)
       }
       resetEdgeReady()
     })
@@ -256,7 +257,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
    */
   async function rebuildUnifiedContract() {
     try {
-      console.log('[tana] 🔨 Rebuilding unified contract...')
+      out.log('rebuild', 'contract...')
 
       projectStructure = await scanProject(projectRoot)
       const structure = projectStructure
@@ -269,10 +270,10 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
 
       await generateContract(structure, devOutDir)
 
-      console.log('[tana] ✅ Unified contract rebuilt')
-      console.log(`[tana]    ${structure.pages.length} page(s), ${structure.apiGet.length} GET handler(s), ${structure.apiPost.length} POST handler(s)`)
+      out.log('ready', 'contract rebuilt')
+      out.log('info', `${structure.pages.length} page(s), ${structure.apiGet.length} GET handler(s), ${structure.apiPost.length} POST handler(s)`)
     } catch (error) {
-      console.error('[tana] ❌ Server bundle rebuild failed:', error)
+      out.error('rebuild', `contract failed: ${error}`)
     }
   }
 
@@ -325,18 +326,18 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
         : projectRoot
 
       resolvedEdgeBinary = edgeBinary || findTanaEdgeBinary(root)
-      console.log(`[tana] Using tana-edge binary: ${resolvedEdgeBinary}`)
+      out.log('config', `tana-edge binary: ${resolvedEdgeBinary}`)
 
       if (stylesheet === false) {
         resolvedStylesheet = null
-        console.log('[tana] Stylesheet injection disabled')
+        out.log('config', 'stylesheet injection disabled')
       } else if (typeof stylesheet === 'string') {
         resolvedStylesheet = stylesheet.startsWith('/') ? stylesheet : `/${stylesheet}`
-        console.log(`[tana] Using stylesheet: ${resolvedStylesheet}`)
+        out.log('config', `stylesheet: ${resolvedStylesheet}`)
       } else {
         resolvedStylesheet = detectStylesheet(root)
         if (!resolvedStylesheet) {
-          console.log('[tana] No stylesheet detected')
+          out.log('config', 'no stylesheet detected')
         }
       }
     },
@@ -352,7 +353,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
         JSON.stringify(manifest, null, 2)
       )
 
-      console.log('[tana] Route manifest generated')
+      out.log('ready', 'route manifest generated')
     },
 
     configureServer(server) {
@@ -381,7 +382,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
         }
 
         if (!edgeReady) {
-          console.log('[tana] Waiting for tana-edge to be ready...')
+          out.log('wait', 'tana-edge to be ready...')
           await edgeReadyPromise
         }
 
@@ -404,7 +405,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
           res.setHeader('Content-Type', 'application/json')
           res.end(response)
         } catch (error) {
-          console.error('[tana] API Error:', error)
+          out.error('api', `${error}`)
           res.setHeader('Content-Type', 'application/json')
           res.statusCode = 500
           res.end(JSON.stringify({ error: 'API request failed' }))
@@ -425,7 +426,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
         }
 
         if (!edgeReady) {
-          console.log('[tana] Waiting for tana-edge to be ready...')
+          out.log('wait', 'tana-edge to be ready...')
           await edgeReadyPromise
         }
 
@@ -436,7 +437,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
           res.setHeader('Content-Type', 'text/html')
           res.end(injectedHtml)
         } catch (error) {
-          console.error('[tana] RSC Error:', error)
+          out.error('rsc', `${error}`)
           next(error)
         }
       })
@@ -453,7 +454,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
       const isBlockchainFile = file.includes('/blockchain/') && (file.endsWith('.tsx') || file.endsWith('.ts'))
 
       if (isAppFile || isApiFile || isBlockchainFile) {
-        console.log(`[tana] Server code changed: ${path.relative(root, file)}`)
+        out.log('change', path.relative(root, file))
         rebuildUnifiedContract()
       }
 
@@ -474,12 +475,12 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
       let generatedClientEntry = false
 
       if (!clientEntry) {
-        console.log('[tana] No client entry found, generating auto-hydration entry...')
+        out.log('info', 'no client entry found, generating auto-hydration entry...')
 
         const structure = projectStructure || await scanProject(projectRoot)
 
         if (structure.pages.length === 0) {
-          console.log('[tana] No pages found, skipping client bundle generation')
+          out.log('info', 'no pages found, skipping client bundle generation')
         } else {
           const tempClientPath = path.join(projectRoot, '.tana', 'client.tsx')
           fs.mkdirSync(path.dirname(tempClientPath), { recursive: true })
@@ -489,19 +490,19 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
 
           clientEntry = tempClientPath
           generatedClientEntry = true
-          console.log(`[tana] Generated client entry: .tana/client.tsx`)
+          out.log('ready', 'generated client entry: .tana/client.tsx')
         }
       }
 
       if (!clientEntry) {
-        console.log('[tana] ⚠️ No pages to hydrate, skipping production build')
+        out.warn('build', 'no pages to hydrate, skipping production build')
         return
       }
 
-      console.log('\n[tana] Production build starting...')
-      console.log(`[tana] Project root: ${root}`)
-      console.log(`[tana] Client entry: ${path.relative(root, clientEntry)}${generatedClientEntry ? ' (auto-generated)' : ''}`)
-      console.log(`[tana] Output: ${finalOutDir}/${contractId}`)
+      out.log('build', 'production starting...')
+      out.log('info', `project root: ${root}`)
+      out.log('info', `client entry: ${path.relative(root, clientEntry)}${generatedClientEntry ? ' (auto-generated)' : ''}`)
+      out.log('info', `output: ${finalOutDir}/${contractId}`)
 
       try {
         await tanaBuild({
@@ -525,9 +526,9 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
           fs.unlinkSync(viteIndexHtml)
         }
 
-        console.log('[tana] ✅ Production build complete!\n')
+        out.log('ready', 'production build complete!')
       } catch (error) {
-        console.error('[tana] ❌ Production build failed:', error)
+        out.error('build', `production failed: ${error}`)
       }
     },
   }

@@ -3,6 +3,7 @@
 
 import path from 'path'
 import fs from 'fs'
+import { out } from '@tananetwork/stdio'
 
 /**
  * Auto-detect stylesheet path from common locations
@@ -28,7 +29,7 @@ export function detectStylesheet(root: string): string | null {
   for (const stylePath of commonPaths) {
     const fullPath = path.join(root, stylePath)
     if (fs.existsSync(fullPath)) {
-      console.log(`[tana] Auto-detected stylesheet: ${stylePath}`)
+      out.log('config', `auto-detected stylesheet: ${stylePath}`)
       // Files in public/ are served at root URL (without public/ prefix)
       if (stylePath.startsWith('public/')) {
         return `/${stylePath.slice(7)}` // Remove 'public/' prefix
