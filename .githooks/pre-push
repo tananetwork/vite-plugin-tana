@@ -32,10 +32,10 @@ echo "Syncing tana-edge platform packages..."
 echo "  version: $CURRENT_VERSION → $EDGE_VERSION"
 
 # Update all platform package versions in optionalDependencies
+# Note: only darwin-arm64, darwin-x64, and linux-x64 are published
 jq --arg v "^$EDGE_VERSION" '
   .optionalDependencies["@tananetwork/tana-edge-darwin-arm64"] = $v |
   .optionalDependencies["@tananetwork/tana-edge-darwin-x64"] = $v |
-  .optionalDependencies["@tananetwork/tana-edge-linux-arm64"] = $v |
   .optionalDependencies["@tananetwork/tana-edge-linux-x64"] = $v
 ' package.json > package.json.tmp && mv package.json.tmp package.json
 
