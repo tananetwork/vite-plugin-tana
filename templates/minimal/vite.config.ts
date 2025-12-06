@@ -8,4 +8,7 @@ export default defineConfig({
     react(),
     tanaPlugin(),
   ],
+  server: {
+    allowedHosts: true,
+  },
 })

@@ -13,4 +13,7 @@ export default defineConfig({
       edgeBinary: path.resolve(__dirname, '../../../edge/target/release/tana-edge'),
     }),
   ],
+  server: {
+    allowedHosts: true,
+  },
 })
