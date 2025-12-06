@@ -1,46 +1,8 @@
 #!/bin/bash
-# Pre-push hook: update tana-edge platform package versions from npm
+# Pre-push hook for vite-plugin-tana
+#
+# Note: tana-edge version syncing was removed because package.json now uses
+# "*" for optionalDependencies, which always pulls the latest version from npm.
+# No more hardcoded versions = no more version drift issues!
 
-set -e
-
-# Skip if missing dependencies
-if ! command -v jq &> /dev/null; then
-  echo "jq not found, skipping version sync"
-  exit 0
-fi
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Sync tana-edge platform package versions
-# ─────────────────────────────────────────────────────────────────────────────
-
-# Get latest version from npm (all platform packages share the same version)
-EDGE_VERSION=$(npm view @tananetwork/tana-edge-darwin-arm64 version 2>/dev/null)
-
-if [ -z "$EDGE_VERSION" ]; then
-  echo "Could not fetch tana-edge version from npm, skipping"
-  exit 0
-fi
-
-# Get current version from package.json
-CURRENT_VERSION=$(jq -r '.optionalDependencies["@tananetwork/tana-edge-darwin-arm64"] // "none"' package.json | sed 's/^\^//')
-
-if [ "$CURRENT_VERSION" = "$EDGE_VERSION" ]; then
-  exit 0
-fi
-
-echo "Syncing tana-edge platform packages..."
-echo "  version: $CURRENT_VERSION → $EDGE_VERSION"
-
-# Update all platform package versions in optionalDependencies
-# Note: only darwin-arm64, darwin-x64, and linux-x64 are published
-jq --arg v "^$EDGE_VERSION" '
-  .optionalDependencies["@tananetwork/tana-edge-darwin-arm64"] = $v |
-  .optionalDependencies["@tananetwork/tana-edge-darwin-x64"] = $v |
-  .optionalDependencies["@tananetwork/tana-edge-linux-x64"] = $v
-' package.json > package.json.tmp && mv package.json.tmp package.json
-
-# Commit the change
-git add package.json
-git commit -m "sync tana-edge platform packages to v$EDGE_VERSION"
-
-echo "Committed version sync, continuing push..."
+exit 0
