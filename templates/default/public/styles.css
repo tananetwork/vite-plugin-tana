@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Content detection - scan these directories for Tailwind classes */
+@source "../app/**/*.{js,jsx,ts,tsx}";
+@source "../src/**/*.{js,jsx,ts,tsx}";
+@source "../components/**/*.{js,jsx,ts,tsx}";
+@source "./**/*.{html,js,jsx,ts,tsx}";
+
 /* Inconsolata - terminal-like monospace font */
 @font-face {
   font-family: 'Inconsolata';
