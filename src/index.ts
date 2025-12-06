@@ -388,7 +388,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
         fs.mkdirSync(outDir, { recursive: true })
       }
 
-      const manifest = await scanRoutes(root)
+      const manifest = await scanRoutes(projectRoot)
       fs.writeFileSync(
         path.join(outDir, 'manifest.json'),
         JSON.stringify(manifest, null, 2)
