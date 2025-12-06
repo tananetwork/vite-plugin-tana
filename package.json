@@ -30,7 +30,7 @@
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "start": "mprocs",
-    "demo": "cd templates/default && npm run dev",
+    "demo": "cd templates/default && npm install ../.. && npm run dev",
     "prepublishOnly": "/bin/bash -c 'rm -rf templates/*/node_modules templates/*/.tana templates/*/dist templates/*/.vite templates/*/bun.lock templates/*/package-lock.json'"
   },
   "keywords": [
