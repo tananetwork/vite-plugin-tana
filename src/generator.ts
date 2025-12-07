@@ -352,7 +352,6 @@ export async function generateContract(
   // Generate contract.js content (unified RSC contract)
   const code = [
     '// Tana Unified Contract (RSC)',
-    `// Generated: ${new Date().toISOString()}`,
     '',
     '// RSC uses the __rsc global provided by tana-edge rsc-runtime.js',
     '// jsx, Fragment, Suspense are available globally',
