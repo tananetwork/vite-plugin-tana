@@ -1,13 +1,13 @@
 {
-  "name": "@tananetwork/vite-plugin-tana",
-  "version": "0.6.10",
-  "description": "Vite plugin for building full-stack applications on the Tana blockchain platform",
+  "name": "@tananetwork/vite-plugin-addis",
+  "version": "0.7.0",
+  "description": "Addis - Full-stack React framework for the Tana blockchain platform",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "tana-build": "./dist/build.js"
+    "addis-build": "./dist/build.js"
   },
   "exports": {
     ".": {
@@ -31,21 +31,24 @@
     "typecheck": "tsc --noEmit",
     "start": "mprocs",
     "demo": "cd templates/default && npm install ../.. && npm run dev",
-    "prepublishOnly": "/bin/bash -c 'rm -rf templates/*/node_modules templates/*/.tana templates/*/dist templates/*/.vite templates/*/bun.lock templates/*/package-lock.json'"
+    "prepublishOnly": "/bin/bash -c 'rm -rf templates/*/node_modules templates/*/.addis templates/*/dist templates/*/.vite templates/*/bun.lock templates/*/package-lock.json'"
   },
   "keywords": [
     "vite",
     "vite-plugin",
+    "addis",
     "tana",
     "blockchain",
     "ssr",
-    "react"
+    "react",
+    "rsc",
+    "react-server-components"
   ],
   "author": "Tana Network",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tananetwork/vite-plugin-tana"
+    "url": "https://github.com/tananetwork/vite-plugin-addis"
   },
   "peerDependencies": {
     "vite": "^6.0.0 || ^7.0.0"

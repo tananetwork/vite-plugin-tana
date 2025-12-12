@@ -1,7 +1,7 @@
-// Tana Plugin Types
-// Shared types and interfaces for vite-plugin-tana
+// Addis Plugin Types
+// Shared types and interfaces for vite-plugin-addis
 
-export interface TanaPluginOptions {
+export interface AddisPluginOptions {
   /**
    * Path to tana-edge binary
    * @default 'tana-edge' (assumes in PATH)
@@ -10,7 +10,7 @@ export interface TanaPluginOptions {
 
   /**
    * Port for tana-edge RSC server
-   * @default 8506
+   * @default 8516
    */
   edgePort?: number
 
@@ -78,5 +78,5 @@ export interface RouteManifest {
 }
 
 // Virtual module IDs for client-side hydration
-export const VIRTUAL_HYDRATE_ID = 'virtual:tana-hydrate'
+export const VIRTUAL_HYDRATE_ID = 'virtual:addis-hydrate'
 export const RESOLVED_VIRTUAL_HYDRATE_ID = '\0' + VIRTUAL_HYDRATE_ID

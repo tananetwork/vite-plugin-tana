@@ -17,4 +17,4 @@ procs:
   # edge:
   #   shell: tana-edge
   #   env:
-  #     EDGE_PORT: "8506"
+  #     EDGE_PORT: "8516"

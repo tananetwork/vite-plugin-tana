@@ -1,4 +1,4 @@
-// Tana Plugin Utilities
+// Addis Plugin Utilities
 // File detection, binary finding, and other helper functions
 
 import path from 'path'

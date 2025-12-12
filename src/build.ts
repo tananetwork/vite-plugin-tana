@@ -178,8 +178,8 @@ export async function tanaBuild(config: TanaBuildConfig): Promise<BuildResult> {
 
   console.log(`\n🚀 Deploy to tana-edge:`)
   console.log(`   cp -r ${contractDir} /path/to/contracts/`)
-  console.log(`   # RSC requests: http://localhost:8506/rsc/${contractId}`)
-  console.log(`   # API requests: http://localhost:8506/${contractId}/api/*\n`)
+  console.log(`   # RSC requests: http://localhost:8516/rsc/${contractId}`)
+  console.log(`   # API requests: http://localhost:8516/${contractId}/api/*\n`)
 
   return {
     contractBundle: contractPath,
@@ -202,7 +202,7 @@ export async function tanaBuild(config: TanaBuildConfig): Promise<BuildResult> {
  *
  * For tana-edge, static files are served from the same path as the contract.
  * In production: https://{contractId}.tana.network/client.js
- * In local dev:  http://localhost:8506/{contractId}/client.js
+ * In local dev:  http://localhost:8516/{contractId}/client.js
  *
  * Paths are relative so they work in both scenarios.
  */
@@ -215,7 +215,7 @@ function generateHtmlShell(options: {
 
   // Use relative paths so they work with both:
   // - subdomain routing (https://my-app.tana.network/client.js)
-  // - path routing (http://localhost:8506/rsc/my-app/client.js)
+  // - path routing (http://localhost:8516/rsc/my-app/client.js)
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

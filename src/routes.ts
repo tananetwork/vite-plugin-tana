@@ -1,4 +1,4 @@
-// Tana Route Scanner
+// Addis Route Scanner
 // File-based routing from app/ directory
 
 import path from 'path'

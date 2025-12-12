@@ -1,14 +1,14 @@
-// Tana Terminal Banner
-// ASCII art and terminal output formatting
+// Addis Terminal Banner
+// ASCII art and terminal output formatting using @tananetwork/stdio
 
 import os from 'os'
+import { ascii } from '@tananetwork/stdio'
 
 // ANSI colors for terminal output
 export const colors = {
   reset: '\x1b[0m',
   bold: '\x1b[1m',
   dim: '\x1b[2m',
-  magenta: '\x1b[35m',
   cyan: '\x1b[36m',
   green: '\x1b[32m',
   gray: '\x1b[90m',
@@ -37,24 +37,18 @@ interface BannerOptions {
 }
 
 /**
- * Print custom Tana startup banner
+ * Print Addis startup banner
+ * Uses @tananetwork/stdio for consistent styling
  */
-export function printTanaBanner(options: BannerOptions) {
+export function printAddisBanner(options: BannerOptions) {
   const { vitePort, edgePort, host } = options
-  const { reset, bold, magenta, cyan, green, gray, dim } = colors
+  const { reset, bold, cyan, green, gray, dim } = colors
 
   // Clear screen and move cursor to top
   console.log('\x1b[2J\x1b[H')
 
-  // Print TANA ASCII art
-  console.log(`${magenta}${bold}`)
-  console.log('  ████████╗ █████╗ ███╗   ██╗ █████╗')
-  console.log('  ╚══██╔══╝██╔══██╗████╗  ██║██╔══██╗')
-  console.log('     ██║   ███████║██╔██╗ ██║███████║')
-  console.log('     ██║   ██╔══██║██║╚██╗██║██╔══██║')
-  console.log('     ██║   ██║  ██║██║ ╚████║██║  ██║')
-  console.log('     ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝')
-  console.log(`${reset}`)
+  // Print ADDIS ASCII art using stdio
+  console.log(ascii('addis'))
 
   console.log(`${gray}  React Server Components + Tailwind + TypeScript${reset}`)
   console.log()

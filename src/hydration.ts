@@ -1,4 +1,4 @@
-// Tana RSC Hydration Module Generator
+// Addis RSC Hydration Module Generator
 // Generates client-side code for Flight protocol parsing and React hydration
 
 import type { ProjectStructure } from './generator.js'
@@ -11,7 +11,7 @@ export function generateHydrationModule(structure: ProjectStructure | null, root
   if (!structure || structure.pages.length === 0) {
     // No pages found - return minimal module that doesn't hydrate
     return `// No pages found - nothing to hydrate
-console.log('[tana] No pages to hydrate');
+console.log('[addis] No pages to hydrate');
 `
   }
 
@@ -36,7 +36,7 @@ console.log('[tana] No pages to hydrate');
       }).join('\n')
     : '// No client components to register'
 
-  return `// Tana RSC Hydration Module (auto-generated)
+  return `// Addis RSC Hydration Module (auto-generated)
 // Uses Flight protocol to receive server-rendered component tree
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -140,7 +140,7 @@ function createReactElement(type, key, props) {
     const moduleId = type.slice(2);
     const Component = clientComponents.get(moduleId);
     if (!Component) {
-      console.warn('[tana] Client component not registered:', moduleId);
+      console.warn('[addis] Client component not registered:', moduleId);
       return React.createElement('div', { key, style: { color: 'red' } }, \`Missing: \${moduleId}\`);
     }
     const convertedProps = props ? flightToReact(props) : {};
@@ -179,22 +179,22 @@ function processFlightData(flightJson) {
 
 /**
  * Hydrate client components that were rendered as placeholders by the server
- * Server renders: <div data-tana-client="moduleId" data-tana-props="..."></div>
+ * Server renders: <div data-addis-client="moduleId" data-addis-props="..."></div>
  * We mount the actual React component into each placeholder
  */
 function hydrateClientComponents() {
-  const placeholders = document.querySelectorAll('[data-tana-client]');
-  console.log('[tana] Found', placeholders.length, 'client component placeholders');
+  const placeholders = document.querySelectorAll('[data-addis-client]');
+  console.log('[addis] Found', placeholders.length, 'client component placeholders');
 
   placeholders.forEach((placeholder) => {
-    const moduleId = placeholder.getAttribute('data-tana-client');
-    const propsJson = placeholder.getAttribute('data-tana-props') || '{}';
+    const moduleId = placeholder.getAttribute('data-addis-client');
+    const propsJson = placeholder.getAttribute('data-addis-props') || '{}';
 
     if (!moduleId) return;
 
     const Component = clientComponents.get(moduleId);
     if (!Component) {
-      console.warn('[tana] Client component not registered:', moduleId);
+      console.warn('[addis] Client component not registered:', moduleId);
       placeholder.innerHTML = '<span style="color: red;">Missing: ' + moduleId + '</span>';
       return;
     }
@@ -203,9 +203,9 @@ function hydrateClientComponents() {
       const props = JSON.parse(propsJson);
       const root = createRoot(placeholder);
       root.render(React.createElement(Component, props));
-      console.log('[tana] Hydrated client component:', moduleId);
+      console.log('[addis] Hydrated client component:', moduleId);
     } catch (e) {
-      console.error('[tana] Failed to hydrate', moduleId, e);
+      console.error('[addis] Failed to hydrate', moduleId, e);
     }
   });
 }
@@ -218,7 +218,7 @@ async function loadPage() {
   if (embeddedData && rootEl && rootEl.children.length > 0) {
     // HTML-first mode: Server rendered actual HTML
     // Just hydrate client component placeholders
-    console.log('[tana] HTML-first mode: hydrating client components only');
+    console.log('[addis] HTML-first mode: hydrating client components only');
     hydrateClientComponents();
     return;
   }
@@ -237,7 +237,7 @@ async function loadPage() {
   });
 
   if (!response.ok) {
-    console.error('[tana] RSC fetch failed:', response.status);
+    console.error('[addis] RSC fetch failed:', response.status);
     return;
   }
 
@@ -290,7 +290,7 @@ if (document.readyState === 'loading') {
 export function generateClientEntryCode(structure: ProjectStructure, root: string): string {
   if (!structure || structure.pages.length === 0) {
     return `// No pages found - nothing to hydrate
-console.log('[tana] No pages to hydrate');
+console.log('[addis] No pages to hydrate');
 `
   }
 
@@ -311,7 +311,7 @@ console.log('[tana] No pages to hydrate');
       }).join('\n')
     : '// No client components to register'
 
-  return `// Tana RSC Client Entry (auto-generated for production)
+  return `// Addis RSC Client Entry (auto-generated for production)
 // Uses Flight protocol to receive server-rendered component tree
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -414,7 +414,7 @@ function createReactElement(type: string, key: string | null, props: any) {
     const moduleId = type.slice(2);
     const Component = clientComponents.get(moduleId);
     if (!Component) {
-      console.warn('[tana] Client component not registered:', moduleId);
+      console.warn('[addis] Client component not registered:', moduleId);
       return React.createElement('div', { key, style: { color: 'red' } }, \`Missing: \${moduleId}\`);
     }
     const convertedProps = props ? flightToReact(props) : {};
@@ -446,7 +446,7 @@ async function loadPage() {
   });
 
   if (!response.ok) {
-    console.error('[tana] RSC fetch failed:', response.status);
+    console.error('[addis] RSC fetch failed:', response.status);
     return;
   }
 

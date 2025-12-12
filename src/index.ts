@@ -1,5 +1,5 @@
-// vite-plugin-tana
-// Main Vite plugin for Tana framework with RSC support
+// vite-plugin-addis
+// Main Vite plugin for Addis framework with RSC support
 
 import type { Plugin, ViteDevServer } from 'vite'
 import { spawn, ChildProcess } from 'child_process'
@@ -8,11 +8,11 @@ import path from 'path'
 import fs from 'fs'
 
 // Internal modules
-import type { TanaPluginOptions } from './types.js'
+import type { AddisPluginOptions } from './types.js'
 import { VIRTUAL_HYDRATE_ID, RESOLVED_VIRTUAL_HYDRATE_ID } from './types.js'
 import { detectStylesheet, findTanaEdgeBinary, findClientEntry } from './utils.js'
 import { scanRoutes } from './routes.js'
-import { printTanaBanner } from './banner.js'
+import { printAddisBanner } from './banner.js'
 import { generateHydrationModule, generateClientEntryCode } from './hydration.js'
 import { out } from '@tananetwork/stdio'
 
@@ -21,20 +21,20 @@ import { tanaBuild } from './build.js'
 import { scanProject, generateContract, ProjectStructure } from './generator.js'
 
 // Re-export types for consumers
-export type { TanaPluginOptions } from './types.js'
+export type { AddisPluginOptions } from './types.js'
 
 /**
- * Vite plugin for Tana framework
+ * Vite plugin for Addis framework
  *
  * Enables Rails-like full-stack development with:
  * - React Server Components (RSC) via tana-edge with Flight protocol streaming
  * - HMR for rapid development
  * - Pre-bundled React (no need to bundle React in contracts)
  */
-export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
+export default function addis(options: AddisPluginOptions = {}): Plugin {
   const {
     edgeBinary,
-    edgePort = 8506,
+    edgePort = 8516,
     vitePort = 5173,
     contractId = 'blockchain',
     contractsDir,
@@ -318,7 +318,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
   }
 
   return {
-    name: 'vite-plugin-tana',
+    name: 'vite-plugin-addis',
 
     config(config) {
       return {
@@ -360,7 +360,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
         ? potentialProjectRoot
         : root
 
-      outDir = path.join(projectRoot, '.tana')
+      outDir = path.join(projectRoot, '.addis')
       resolvedContractsDir = contractsDir
         ? path.resolve(projectRoot, contractsDir)
         : projectRoot
@@ -413,7 +413,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
         const host = server.config.server.host
 
         setTimeout(() => {
-          printTanaBanner({ vitePort: port, edgePort, host })
+          printAddisBanner({ vitePort: port, edgePort, host })
         }, 100)
       })
 
@@ -524,7 +524,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
         if (structure.pages.length === 0) {
           out.log('info', 'no pages found, skipping client bundle generation')
         } else {
-          const tempClientPath = path.join(projectRoot, '.tana', 'client.tsx')
+          const tempClientPath = path.join(projectRoot, '.addis', 'client.tsx')
           fs.mkdirSync(path.dirname(tempClientPath), { recursive: true })
 
           const clientCode = generateClientEntryCode(structure, projectRoot)
@@ -532,7 +532,7 @@ export default function tanaPlugin(options: TanaPluginOptions = {}): Plugin {
 
           clientEntry = tempClientPath
           generatedClientEntry = true
-          out.log('ready', 'generated client entry: .tana/client.tsx')
+          out.log('ready', 'generated client entry: .addis/client.tsx')
         }
       }
 
