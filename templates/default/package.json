@@ -1,5 +1,5 @@
 {
-  "name": "tana-default-template",
+  "name": "{{name}}",
   "type": "module",
   "scripts": {
     "start": "tana start",
@@ -13,7 +13,7 @@
     "tailwind-merge": "^2.5.0"
   },
   "devDependencies": {
-    "@tananetwork/vite-plugin-tana": "^0.5.4",
+    "@tananetwork/vite-plugin-addis": "^0.7.0",
     "@tailwindcss/vite": "^4.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",

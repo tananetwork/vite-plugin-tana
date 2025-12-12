@@ -1,6 +1,6 @@
 {
   "name": "@tananetwork/vite-plugin-addis",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Addis - Full-stack React framework for the Tana blockchain platform",
   "type": "module",
   "main": "./dist/index.js",

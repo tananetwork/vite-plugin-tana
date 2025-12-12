@@ -12,7 +12,7 @@
   },
   "devDependencies": {
     "@tananetwork/types": "^0.1.0",
-    "@tananetwork/vite-plugin-tana": "^0.6.8",
+    "@tananetwork/vite-plugin-addis": "^0.7.0",
     "@tailwindcss/vite": "^4.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
